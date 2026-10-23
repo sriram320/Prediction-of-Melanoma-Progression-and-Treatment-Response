@@ -1,0 +1,526 @@
+﻿Week 4 - System Design Document
+Project: Longitudinal Multimodal AI for Early Prediction of Melanoma Progression and Treatment Response
+Module
+ | Longitudinal Multimodal AI Architecture for Melanoma Progression Prediction
+ | 
+Team Members
+ | Aaditya Rajvinod (R23EF004), Sriram (R23EA122)
+ | 
+Mentor
+ | Dr. Satheesha T.Y.
+ | 
+Deliverable
+ | Week 4 - System Design Document (v1.0)
+ | 
+1. Introduction
+1.1 Purpose
+This document specifies the architecture of the longitudinal multimodal AI system: its layers, the eleven modules that make up the prediction pipeline, the data they exchange, and how the system is deployed and made safe. It turns the functional requirements (FR-01 to FR-15) and non-functional requirements (NFR-01 to NFR-10) from the Week 2 requirement analysis into a design that can be built and tested.
+1.2 Scope
+The design covers the path from image acquisition through preprocessing, lesion segmentation, cross-visit registration, temporal feature extraction, 3D analysis, multimodal fusion, progression prediction, treatment-response analysis, explainability and uncertainty estimation, plus the supporting dashboard, fairness monitor and audit log. It does not cover clinical trials or regulatory approval.
+1.3 Design Basis
+Four findings from Weeks 1 and 2 shape the design. Real serial data is scarce and short (the Basel set has 116 lesions with 5 images each), so the image encoder is pretrained on large static datasets and the temporal part is kept small. Visits are unevenly spaced, so the time gap between visits is an explicit input. Public 3D series and treatment-response data do not exist, so the 3D and treatment-response modules are optional pathways and the core pipeline must run without them. Finally, safety comes first: whenever the system is unsure it refers the case to a dermatologist rather than returning a category (NFR-03).
+2. System Architecture Overview
+The system has six layers, shown in Figure 1. Data flows down through acquisition, preprocessing and registration, feature extraction and modelling; the explainability and trust layer sits between the model and the clinician so that no prediction reaches the dashboard without an explanation and an uncertainty check. Each module reads and writes through defined data contracts instead of shared state, so any one of them can be replaced or retrained on its own (NFR-09).
+Figure 1. Layered system architecture with modules M1-M11 and supporting modules S1-S3.
+3. Module Overview
+Table 1 lists the eleven prediction-pipeline modules (M1-M11) and the three supporting modules (S1-S3). Modules marked conditional run only when their data exists; the core pipeline is M1 to M5, M7, M8, M10 and M11.
+ID
+ | Module
+ | Purpose
+ | Requirements
+ | Status
+ | 
+M1
+ | Image Acquisition
+ | Receive serial images and metadata, link them to patient, lesion and visit
+ | FR-01, FR-02, FR-14
+ | Core
+ | 
+M2
+ | Preprocessing
+ | Standardise colour and resolution, score image quality
+ | FR-01, NFR-05
+ | Core
+ | 
+M3
+ | Lesion Segmentation
+ | Outline the lesion in every image
+ | FR-03
+ | Core
+ | 
+M4
+ | Cross-Visit Registration
+ | Align the same lesion across visits
+ | FR-04
+ | Core
+ | 
+M5
+ | Temporal Feature Extraction
+ | Per-visit embeddings and between-visit change features
+ | FR-05
+ | Core
+ | 
+M6
+ | 3D Analysis
+ | Surface and relief features, measured or proxy
+ | FR-02, FR-05
+ | Conditional
+ | 
+M7
+ | Multimodal Fusion
+ | Combine image, 3D and clinical data across visits
+ | FR-06
+ | Core
+ | 
+M8
+ | Progression Prediction
+ | Calibrated risk score and monitoring category
+ | FR-06, FR-07
+ | Core
+ | 
+M9
+ | Treatment-Response Analysis
+ | Classify pre/post-treatment trajectory
+ | FR-08
+ | Conditional
+ | 
+M10
+ | Explainable AI
+ | Visit attention, difference map, change summary
+ | FR-09, FR-10, NFR-04
+ | Core
+ | 
+M11
+ | Uncertainty Estimation
+ | Uncertainty score and referral gate
+ | FR-11, NFR-03
+ | Core
+ | 
+S1
+ | Fairness & Calibration Monitor
+ | Subgroup performance and calibration tracking
+ | FR-12, NFR-05
+ | Core
+ | 
+S2
+ | Clinician Dashboard
+ | Timeline, risk trend, explanations, override
+ | FR-13, NFR-08
+ | Core
+ | 
+S3
+ | Audit Logger
+ | Append-only record of predictions and decisions
+ | FR-15, NFR-10
+ | Core
+ | 
+Table 1. Module overview and requirement traceability.
+4. Module Specifications
+4.1 M1 - Image Acquisition (FR-01, FR-02, FR-14)
+Purpose
+ | Accept serial images and metadata, link them to patient, lesion and visit identifiers, and reduce acquisition variation at the source.
+ | 
+Inputs
+ | Dermoscopic and clinical images, optional 3D-TBP lesion exports, visit date, device metadata (DR-06), consent flag, optional treatment record.
+ | 
+Outputs
+ | A linked visit record (image URIs, modality tags, date, device data) and a date-ordered lesion timeline.
+ | 
+Design
+ | REST upload endpoint with schema validation, de-identification at ingestion and encrypted object storage. Lesion identity is chosen by the clinician for dermoscopy or taken from the TBP lesion ID. The optional mobile app checks framing, focus and lighting before upload.
+ | 
+Failure handling
+ | Missing visit date or unreadable file is rejected; duplicates are detected by hash; missing device metadata is stored as unknown and does not block analysis.
+ | 
+4.2 M2 - Preprocessing (FR-01, NFR-05)
+Purpose
+ | Make images from different devices and lighting comparable and flag poor-quality images before they enter the model.
+ | 
+Inputs
+ | Raw images and device metadata.
+ | 
+Outputs
+ | Normalised images at a fixed model resolution, a quality score and flags (blur, glare, hair, ruler or ink marks).
+ | 
+Design
+ | Colour constancy (for example Shades-of-Gray), hair suppression by morphological filtering, blur detection by variance of the Laplacian, glare and marker detection, per-device intensity normalisation and pixel-size scaling when available. Augmentation is applied in training only.
+ | 
+Failure handling
+ | Low-quality visits are kept but flagged; they are excluded from a sequence only with clinician confirmation, and the flag raises the uncertainty score (M11).
+ | 
+4.3 M3 - Lesion Segmentation (FR-03)
+Purpose
+ | Outline the lesion in each image so that size, shape and colour changes can be measured and so later modules ignore surrounding skin.
+ | 
+Inputs
+ | Preprocessed image.
+ | 
+Outputs
+ | Binary lesion mask, boundary, segmentation confidence and basic geometry (area, diameter, centroid, orientation).
+ | 
+Design
+ | U-Net-style encoder-decoder with a pretrained encoder, trained on ISIC 2018 lesion masks and the HAM10000 segmentation masks. Test-time augmentation gives a confidence estimate. An optional click-prompted refinement lets a clinician correct the mask in the dashboard.
+ | 
+Failure handling
+ | Masks below the confidence threshold are flagged for correction; the system does not compute a risk score from a rejected mask.
+ | 
+4.4 M4 - Cross-Visit Registration (FR-04)
+Purpose
+ | Put every visit of a lesion into one coordinate frame so differences reflect real change and not camera position.
+ | 
+Inputs
+ | Images and masks for the current and earlier visits, ordered by date.
+ | 
+Outputs
+ | Registered image stack, transforms, and a registration quality score.
+ | 
+Design
+ | Two stages. Coarse alignment uses mask centroid, principal axis and scale. Refinement uses keypoint matching with RANSAC for a similarity or affine transform, with an optional deformable step limited to the dilated mask region. Quality is measured by warped-mask overlap and the match inlier ratio. This module is a design priority because change-detection work reports that alignment and quality standardisation improve accuracy.
+ | 
+Failure handling
+ | If quality is below threshold the system falls back to mask-only alignment, sets a registration-uncertain flag, and passes it to M10 and M11.
+ | 
+4.5 M5 - Temporal Feature Extraction (FR-05)
+Purpose
+ | Describe each visit with a compact representation and quantify how the lesion changed between visits.
+ | 
+Inputs
+ | Registered images, masks, visit dates.
+ | 
+Outputs
+ | Per-visit embedding, dermoscopic concept scores, handcrafted descriptors, change features and time gaps, assembled into one sequence per lesion.
+ | 
+Design
+ | A shared-weight CNN encoder (EfficientNet or ResNet, pretrained on ISIC-style data) is applied to every visit. Auxiliary concept heads trained on Derm7pt predict dermoscopic terms such as pigment network, streaks, dots and globules, regression and vascular structures. Handcrafted ABCD-style descriptors are computed from the masks. Change features are differences and ratios between consecutive visits and against the baseline. Embeddings are cached per image and model version.
+ | 
+Failure handling
+ | A lesion with one visit gets a baseline record and no progression score. Missing visits shorten the sequence.
+ | 
+4.6 M6 - 3D Analysis (FR-02, FR-05, conditional)
+Purpose
+ | Add surface and relief information that flat colour and texture cannot show.
+ | 
+Inputs
+ | 3D-TBP lesion exports where available; otherwise the registered 2D images.
+ | 
+Outputs
+ | A 3D feature vector (surface area, estimated elevation or relief, volume proxy, roughness, height asymmetry) and a pathway flag: measured or proxy.
+ | 
+Design
+ | Pathway A (3D-TBP present): use the TBP-derived size, shape and colour measurements and, where meshes exist, descriptors from the segmented 3D patch. Pathway B (2D only): derive relief proxies from shading-based depth estimation and texture gradients. The same temporal differences as in M5 are computed. Proxy features carry a lower-confidence modality embedding.
+ | 
+Failure handling
+ | No 3D data sets a missing-modality flag and the pipeline continues. The dashboard never presents proxy features as measured 3D.
+ | 
+4.7 M7 - Multimodal Fusion (FR-06)
+Purpose
+ | Combine image sequences, 3D features and clinical data over time into one representation of the lesion.
+ | 
+Inputs
+ | M5 sequence (embeddings, concept scores, change features), M6 features, clinical metadata (age band, sex, body site, Fitzpatrick type, history), visit time gaps.
+ | 
+Outputs
+ | Fused lesion representation, per-visit attention weights and a modality availability mask.
+ | 
+Design
+ | Each modality is projected to a common size and a time-gap encoding is added. A small temporal model (GRU with attention pooling first, a 2-layer transformer if data allows) runs over the visits, with cross-attention between image and tabular tokens. Modality dropout in training lets the model work when 3D or metadata are missing. Attention weights are exported to M10.
+ | 
+Failure handling
+ | Missing modalities are masked, not imputed silently; the mask is stored with the prediction.
+ | 
+4.8 M8 - Progression Prediction (FR-06, FR-07)
+Purpose
+ | Turn the fused representation into a calibrated progression risk and a monitoring category.
+ | 
+Inputs
+ | Fused representation from M7.
+ | 
+Outputs
+ | Risk score between 0 and 1, risk category (routine monitoring, shortened-interval monitoring, specialist referral) and an auxiliary changed-or-stable score.
+ | 
+Design
+ | A small MLP head with a sigmoid output, trained with a class-weighted or focal loss because progression is rare, plus an auxiliary change-detection loss. Temperature scaling calibrates the score on held-out patients. Category thresholds are set on validation data to reach a target sensitivity for referral, agreed with a clinician. Labels follow the data: progressed means biopsy-confirmed melanoma or documented change leading to excision, stable means documented stability on follow-up.
+ | 
+Failure handling
+ | When M11 raises a referral flag the category is withheld and only the review recommendation is shown.
+ | 
+4.9 M9 - Treatment-Response Analysis (FR-08, conditional)
+Purpose
+ | Classify how a lesion responded to an intervention.
+ | 
+Inputs
+ | Pre-treatment baseline sequence, post-treatment images and the treatment record (type, date).
+ | 
+Outputs
+ | Response class (favourable, persistent, progression) with a confidence value.
+ | 
+Design
+ | A Siamese comparison reuses the M5 encoder to embed the pre-treatment baseline and each post-treatment image, adds a treatment-type embedding, and classifies with a three-class head. No public skin-image dataset with response labels was found, so this module is specified as an interface and reference design and is trained only when annotated partner data exists.
+ | 
+Failure handling
+ | Without a treatment record the module is not run and the response status stays pending.
+ | 
+4.10 M10 - Explainable AI (FR-09, FR-10, NFR-04)
+Purpose
+ | Show the clinician which visits and which changes drove the prediction.
+ | 
+Inputs
+ | Attention weights, encoder gradients and feature maps, registered images, concept scores and change features.
+ | 
+Outputs
+ | (1) Visit-attention chart. (2) Registered difference map overlaid on the lesion. (3) Grad-CAM++ saliency on the most influential visit. (4) A short change summary generated from templates, for example area change and new colour regions.
+ | 
+Design
+ | Attention weights from M7 are combined with Grad-CAM++ on the encoder. The difference map is the colour difference (in Lab space) between colour-normalised, registered images inside the union of the masks, thresholded for display. The change summary is template-based from the numeric features, with no free-text generation. Faithfulness is checked with deletion and insertion tests on validation data.
+ | 
+Failure handling
+ | If registration is uncertain the difference map carries a warning banner; if saliency fails its sanity check only the attention chart and numeric summary are shown.
+ | 
+4.11 M11 - Uncertainty Estimation (FR-11, NFR-03)
+Purpose
+ | Decide when the system is not confident enough to return an automated category and route the case to a dermatologist.
+ | 
+Inputs
+ | Repeated model outputs (ensemble members or dropout passes), registration and image quality scores, modality mask, an out-of-distribution score.
+ | 
+Outputs
+ | Uncertainty score, referral flag and reason codes (low image quality, registration uncertain, model disagreement, out-of-distribution).
+ | 
+Design
+ | A small ensemble of temporal heads on a shared frozen encoder, or Monte Carlo dropout, estimates epistemic uncertainty; predictive entropy covers aleatoric uncertainty. A conformal prediction wrapper gives set-valued predictions with a target coverage. A case is referred if the prediction set is not a single class, the uncertainty exceeds a threshold, or a quality or registration flag is set. Thresholds trade referral rate against missed progression on validation data.
+ | 
+Failure handling
+ | Any error inside this module defaults to a referral flag, never to a silent automated result.
+ | 
+4.12 Supporting Modules S1-S3
+Module
+ | Function and design
+ | 
+S1 Fairness & Calibration Monitor (FR-12)
+ | Computes sensitivity, specificity, calibration error and referral rate by Fitzpatrick type, body site, device and illumination, using reliability diagrams and worst-group metrics. Runs outside the request path and raises an alert when a subgroup falls below the agreed threshold.
+ | 
+S2 Clinician Dashboard (FR-13)
+ | Shows the lesion timeline, side-by-side registered images, risk trend, difference map, visit attention and the referral banner. Clinicians can correct masks, confirm or override a category and record a reason.
+ | 
+S3 Audit Logger (FR-15)
+ | Append-only log of each prediction, explanation, uncertainty flag, model version and clinician action, readable by a retrospective review.
+ | 
+5. Processing Pipeline and Training Strategy
+5.1 End-to-End Pipeline
+Figure 2 shows what happens when a new visit is added. Steps 1 to 8 always run; the 3D and treatment-response branches run only when their inputs exist. Step 8 ends in the uncertainty gate, which is the main safety mechanism: a low-confidence case reaches the clinician as a review recommendation and never as an automated category.
+Figure 2. End-to-end processing pipeline with the uncertainty-gated referral branch.
+5.2 Training and Validation Strategy
+Stage
+ | Data
+ | What is trained
+ | Notes
+ | 
+1. Segmentation
+ | ISIC 2018 masks, HAM10000 masks
+ | M3
+ | Dice and IoU on held-out lesions
+ | 
+2. Encoder
+ | HAM10000, SIIM-ISIC 2020, Derm7pt
+ | M5 encoder and concept heads
+ | Lesion- and patient-level splits
+ | 
+3. Temporal model
+ | SDDI1 real sequences; synthetic sequences for development only
+ | M7, M8
+ | Leave-patient-out cross-validation; synthetic data labelled as such
+ | 
+4. Calibration
+ | Held-out patients
+ | Temperature scaling, M11 thresholds, conformal set
+ | Risk-coverage and calibration error
+ | 
+5. Treatment response
+ | Partner data only
+ | M9
+ | Conditional on annotated data
+ | 
+Evaluation uses AUROC, AUPRC, sensitivity at fixed specificity, calibration error, referral rate and missed-progression rate, with subgroup breakdowns, because progression is rare and accuracy alone would be misleading.
+5.3 Key Design Decisions
+Decision
+ | Choice
+ | Reason
+ | Alternative if data allows
+ | 
+Per-visit encoder
+ | Pretrained CNN
+ | Small serial datasets; strong pretraining available
+ | Vision Transformer
+ | 
+Temporal model
+ | GRU with attention
+ | Handles 2 to 5 variable-length visits; attention weights reused for XAI
+ | Transformer encoder
+ | 
+Fusion
+ | Intermediate fusion with modality dropout
+ | 3D and metadata are often missing
+ | Late fusion
+ | 
+Time handling
+ | Explicit time-gap encoding
+ | Gaps range from about 3 months to 6-12 months
+ | Equal spacing
+ | 
+Uncertainty
+ | Ensemble or MC dropout plus conformal
+ | Gives a coverage guarantee and a fail-safe gate
+ | Single-model entropy
+ | 
+3D
+ | Measured or proxy pathway
+ | No public serial 3D data
+ | Drop 3D
+ | 
+6. Data Design
+Figure 3 shows the core entities. A patient has lesions; a lesion has visits and optional treatment events; a visit has images and at most one prediction; a prediction has one explanation and audit entries. This makes the main query, a lesion's full visit history in date order, a single lookup. Per-image embeddings are cached in a feature store keyed by image and model version so they are not recomputed at each visit (NFR-01).
+Figure 3. Core entity-relationship overview.
+Entity
+ | Key fields
+ | Notes
+ | 
+Patient
+ | patient_id, fitzpatrick_type, age_band, consent_status
+ | De-identified; banded age limits re-identification
+ | 
+Lesion
+ | lesion_id, patient_id, anatomical_site, first_seen_visit_id
+ | Tracked lesion across visits
+ | 
+Visit
+ | visit_id, lesion_id, visit_date, device_metadata, quality_score
+ | Device data per DR-06
+ | 
+Image
+ | image_id, visit_id, modality, storage_uri, mask_uri, registration_transform
+ | Modality: clinical_photo, dermoscopic or 3d_tbp; URI is encrypted, never public
+ | 
+Prediction
+ | prediction_id, visit_id, risk_score, risk_category, uncertainty_score, referral_flag, reason_codes, modality_mask, model_version
+ | Category is empty when referral_flag is true
+ | 
+Explanation
+ | explanation_id, prediction_id, attention_weights, difference_map_uri
+ | One per prediction
+ | 
+TreatmentEvent
+ | treatment_event_id, lesion_id, treatment_type, treatment_date, response_category
+ | response_category: favourable, persistent, progression or pending
+ | 
+AuditLog
+ | audit_id, prediction_id, user_id, event_type, timestamp
+ | Append-only, immutable
+ | 
+Table 2. Entity schemas (key fields).
+7. Deployment Architecture
+Figure 4 shows the deployment. The mobile app only guides capture and uploads images; it never runs the full analysis. Every request passes through the API gateway, which authenticates the caller, de-identifies metadata and writes an audit entry before forwarding to the inference service, a GPU-backed service hosting M3 to M11. Secure storage holds the encrypted image archive and the database. Monitoring and the fairness monitor (S1) run beside the request path, so they neither block nor are blocked by clinical use.
+Figure 4. Deployment and infrastructure architecture.
+The inference service is stateless and scales horizontally with the GPU pool (NFR-02). Caching per-visit embeddings means a new visit only needs the new image to be encoded, which keeps a single analysis under the 60-second target (NFR-01).
+8. Error Handling and Failure Modes
+Condition
+ | System behaviour
+ | 
+Image fails quality check (M2)
+ | Visit flagged as low quality; kept in the record; excluded from the sequence only with clinician confirmation; uncertainty raised.
+ | 
+Segmentation confidence too low (M3)
+ | No risk score from that visit until the mask is corrected or confirmed in the dashboard.
+ | 
+Registration does not converge (M4)
+ | Fall back to mask-only alignment with a registration-uncertain flag shown in the explanation; uncertainty raised.
+ | 
+Only one visit available (M5)
+ | Baseline stored; no progression score produced.
+ | 
+No 3D data or no treatment record (M6, M9)
+ | Pipeline runs on the 2D pathway; missing-modality flag recorded; not treated as an error.
+ | 
+Uncertainty above threshold or any M11 error
+ | Referral flag set; no automated category returned (FR-11, NFR-03).
+ | 
+Inference service unavailable
+ | Gateway returns a service-unavailable message; the mobile app queues the image for retry.
+ | 
+Subgroup performance falls below threshold (S1)
+ | Alert to governance and engineering; predictions for the affected subgroup are disclosed as lower-confidence, not silently continued (NFR-05).
+ | 
+Table 3. Key failure modes and required behaviour.
+9. Security and Privacy Design
+Images and metadata are de-identified at ingestion and encrypted at rest and in transit (NFR-06).
+The API gateway is the single enforcement point for authentication and authorisation; individual modules do not check permissions themselves.
+The mobile app does not keep full-resolution images or results after upload.
+Every read, write, prediction and referral event goes to the append-only audit log (FR-15, NFR-10).
+Any DICOM or FHIR export passes through the same de-identification and access checks as internal calls (NFR-07).
+Datasets with non-commercial licences (HAM10000, SIIM-ISIC 2020, SLICE-3D) are used for research only and tracked in the data inventory.
+10. Traceability Matrix
+Requirement
+ | Realised by
+ | 
+FR-01, FR-02
+ | M1 Image Acquisition, M6 3D Analysis; POST /v1/visits/{visitId}/images
+ | 
+FR-03
+ | M3 Lesion Segmentation
+ | 
+FR-04
+ | M4 Cross-Visit Registration
+ | 
+FR-05
+ | M5 Temporal Feature Extraction, M6 3D Analysis
+ | 
+FR-06
+ | M7 Multimodal Fusion, M8 Progression Prediction; POST /v1/lesions/{lesionId}/analyze
+ | 
+FR-07
+ | M8 category thresholds
+ | 
+FR-08
+ | M9 Treatment-Response Analysis; POST /v1/lesions/{lesionId}/treatment-events
+ | 
+FR-09, FR-10
+ | M10 Explainable AI; GET /v1/predictions/{predictionId}/explanation
+ | 
+FR-11
+ | M11 Uncertainty Estimation
+ | 
+FR-12
+ | S1 Fairness & Calibration Monitor; GET /v1/reports/subgroup-performance
+ | 
+FR-13
+ | S2 Clinician Dashboard; GET /v1/lesions/{lesionId}/timeline
+ | 
+FR-14
+ | M1 mobile capture guidance
+ | 
+FR-15
+ | S3 Audit Logger; GET /v1/audit/{predictionId}
+ | 
+NFR-01, NFR-02
+ | Cached embeddings; stateless, horizontally scalable inference service (Section 7)
+ | 
+NFR-03
+ | M11 referral gate with fail-safe default (Section 4.11, 8)
+ | 
+NFR-04, NFR-08
+ | M10 Explainable AI and S2 Clinician Dashboard
+ | 
+NFR-05
+ | M2 device normalisation and S1 Fairness & Calibration Monitor
+ | 
+NFR-06, NFR-07
+ | API gateway (authentication, de-identification, DICOM/FHIR export)
+ | 
+NFR-09
+ | Layered, module-per-concern architecture (Sections 2-4)
+ | 
+NFR-10
+ | S3 Audit Logger and AuditLog entity (Section 6)
+ | 
+Table 4. Requirement-to-design traceability.
+
+[MEDIA]: word/media/, word/media/18ac2f851df4fc5dcc09fa3972a769f7447de45f.png, word/media/1348ca0bb9c0e79fded8c3882c0b98bb0627eef0.png, word/media/1d0495335ff9c27b99313ecd6af73a56abab731d.png, word/media/bcf0c5ff59b9f8826e5ce2817f8fd49480c24a61.png

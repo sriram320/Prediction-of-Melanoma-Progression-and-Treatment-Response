@@ -1,0 +1,98 @@
+﻿Week 1 Write-Up - Module Understanding and Findings
+Project: Longitudinal Multimodal AI for Early Prediction of Melanoma Progression and Treatment Response
+Module
+ | Melanoma, Dermoscopy and Longitudinal Dataset Study
+ | 
+Team Members
+ | Aaditya Rajvinod (R23EF004), Sriram (R23EA122)
+ | 
+Mentor
+ | Dr. Satheesha T.Y.
+ | 
+Deliverable
+ | Week 1 - Short Write-Up and Preliminary Findings
+ | 
+1. Module Scope
+This module is the groundwork for the project. Before building anything that tracks a lesion over time, we wanted to understand what melanoma looks like clinically and under a dermatoscope, how dermatologists describe it, how change over time is used in follow-up, and what public data exists to train a longitudinal model.
+2. Objective
+Study melanoma characteristics, dermoscopic terminology and longitudinal lesion monitoring, and identify suitable public datasets that contain multiple images or observations per lesion.
+3. Melanoma and Dermoscopy
+Melanoma starts in the pigment-producing cells of the skin, and outcomes depend heavily on how early it is removed. The usual clinical screening aid is the ABCDE rule: asymmetry, border irregularity, colour variegation, diameter above roughly 6 mm, and evolution. Four of those five can be judged from one photograph. Evolution cannot, and it is the criterion this project is built around.
+Dermoscopy adds magnified, polarised or immersion-lit views of structures below the skin surface, and dermatologists score what they see using pattern analysis, the ABCD rule, the Menzies method or the 7-point checklist (Argenziano et al., 1998). The checklist has three major criteria worth two points each and four minor criteria worth one point each, and a total of three or more is treated as suspicious. These terms matter to us because they are the vocabulary used to label datasets such as Derm7pt, and the same features are what a temporal model should be picking up changes in.
+Dermoscopic term
+ | What it looks like
+ | 7-point
+ | 
+Atypical pigment network
+ | Prominent, irregular network with thick lines and abrupt cut-offs
+ | Major
+ | 
+Blue-whitish veil
+ | Irregular, confluent grey-blue to whitish-blue area with a ground-glass haze
+ | Major
+ | 
+Atypical vascular pattern
+ | Linear-irregular, dotted or polymorphous vessels outside regression areas
+ | Major
+ | 
+Irregular streaks
+ | Radial pigmented projections at the edge of the lesion
+ | Minor
+ | 
+Irregular dots / globules
+ | Black, brown or blue round structures spread unevenly
+ | Minor
+ | 
+Irregular blotches
+ | Asymmetric patches of black, brown or grey pigment
+ | Minor
+ | 
+Regression structures
+ | White scar-like areas and/or grey "peppering"
+ | Minor
+ | 
+4. Longitudinal Lesion Monitoring
+In digital dermoscopic follow-up, patients with many moles have selected lesions photographed at intervals and compared against earlier images. The Vienna programme described with HAM10000 sees patients roughly every 6 to 12 months, and a nevus that showed no change over three visits or 1.5 years was accepted as benign. So stability over time is itself used as evidence, while a lesion that changes is usually excised and confirmed by histopathology. For labels, that means "stable" comes from follow-up and "progressed" from biopsy.
+5. Public Dataset Study
+Dataset
+ | Contents
+ | Multiple observations?
+ | Use for us
+ | 
+HAM10000
+ | 10,015 dermoscopic images; lesion_id column in the metadata
+ | Several images of some lesions (different magnification, angle or camera). Only the latest image of follow-up nevus sequences was kept.
+ | Lesion-level splits; not a true time series
+ | 
+ISIC archive - repeated dermoscopy (Basel, "SDDI1")
+ | 116 lesions from 66 patients, 5 images each, as described in a 2024 benchmark paper
+ | Yes - ordered repeat images of the same lesion
+ | Best longitudinal candidate; access and metadata still to verify
+ | 
+SIIM-ISIC 2020
+ | 33,126 training images with patient identifiers
+ | Many lesions per patient; one image per lesion (median timepoint taken for follow-up nevi)
+ | Patient-level context and splits
+ | 
+ISIC 2024 SLICE-3D
+ | 401,059 lesion crops from 3D total-body photography, 1,042 patients, 393 malignant
+ | Whole-body snapshot per patient; no repeat visits seen in the descriptor
+ | Patient context; link to the 3D component
+ | 
+Derm7pt
+ | 1,011 cases, clinical + dermoscopic pair, 7-point labels
+ | Two views per case, not time
+ | Dermoscopic feature labels
+ | 
+The main finding is that the two biggest public sources deliberately collapse follow-up sequences into a single image: HAM10000 kept the most recent image and the 2020 challenge set kept the median timepoint. The only truly serial public set we found is the small Basel collection, so a model trained on real sequences will start from very little data. Next we will verify access to the Basel images and check the HAM10000 lesion_id groups, and carry these gaps into next week's literature survey.
+6. Literature Summary
+Static classification is well covered, and Kawahara et al. (2019) showed that dermoscopic checklist features can be predicted alongside the diagnosis using paired clinical and dermoscopic images. Work on sequences is much thinner. Yu et al. (2020) modelled serial dermoscopy on 184 patients and 747 images, with sequence lengths from 1 to 12, and a follow-up study (2021) on 179 histologically confirmed lesions compared the model with 12 dermatologists and reported earlier and more accurate calls than static images. Both used self-collected data that, as far as we could tell, is not public.
+References
+Argenziano, G. et al. (1998). Epiluminescence microscopy for the diagnosis of doubtful melanocytic skin lesions: comparison of the ABCD rule of dermatoscopy and a new 7-point checklist based on pattern analysis. Archives of Dermatology, 134(12), 1563-1570.
+Kawahara, J., Daneshvar, S., Argenziano, G., & Hamarneh, G. (2019). Seven-point checklist and skin lesion classification using multitask multimodal neural nets. IEEE Journal of Biomedical and Health Informatics, 23(2).
+Kurtansky, N. R. et al. (2024). The SLICE-3D dataset: 400,000 skin lesion image crops extracted from 3D TBP for skin cancer detection. Scientific Data, 11, 884.
+Rotemberg, V. et al. (2021). A patient-centric dataset of images and metadata for identifying melanomas using clinical context. Scientific Data, 8, 34.
+Tschandl, P., Rosendahl, C., & Kittler, H. (2018). The HAM10000 dataset, a large collection of multi-source dermatoscopic images of common pigmented skin lesions. Scientific Data, 5, 180161.
+Yu, Z. et al. (2020). Melanoma diagnosis with spatio-temporal feature learning on sequential dermoscopic images. MICCAI 2020. arXiv:2006.10950.
+Yu, Z. et al. (2021). Early melanoma diagnosis with sequential dermoscopic images. arXiv:2110.05976.
+A multimodal vision foundation model for clinical dermatology (2024). arXiv:2410.15038.

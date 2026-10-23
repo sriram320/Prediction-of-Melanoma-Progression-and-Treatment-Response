@@ -1,0 +1,382 @@
+﻿Week 2 - Literature Survey & Requirement Analysis
+Project: Longitudinal Multimodal AI for Early Prediction of Melanoma Progression and Treatment Response
+Module
+ | Longitudinal Multimodal Framework for Melanoma Progression Prediction
+ | 
+Team Members
+ | Aaditya Rajvinod (R23EF004), Sriram (R23EA122)
+ | 
+Mentor
+ | Dr. Satheesha T.Y.
+ | 
+Deliverable
+ | Week 2 - Literature Survey and Requirement Analysis
+ | 
+1. Introduction and Scope
+This document is the Week 2 deliverable for our module. Part A reviews the literature on melanoma progression, longitudinal lesion analysis, clinical and dermoscopic imaging, treatment response, temporal AI, 3D morphology and explainable AI, and ends with the research gaps we found. Part B turns those gaps into a project scope, the inputs and outputs of the system, functional and non-functional requirements, and the datasets we can realistically use. It builds on the dataset study from Week 1.
+2. Part A - Literature Survey
+2.1 Melanoma Progression and Longitudinal Lesion Analysis
+In clinical practice, progression is judged by comparing a lesion with its own earlier appearance. Sequential digital dermoscopy photographs selected lesions at intervals, and monitoring over about three months is an accepted way to catch early melanoma: a change usually prompts excision, while stability is reassuring (Yan et al., 2025). Total body photography does the same at body level and helps find new or changing lesions in patients with many naevi.
+Learning-based work on sequences is small. Yu et al. (2020) built a spatio-temporal model on serial dermoscopy from 184 patients (747 images, sequences of 1 to 12 images, every lesion confirmed by biopsy), and their 2021 study on 179 lesions found that serial input beat static images and compared favourably with 12 clinicians. Both datasets were self-collected. The PanDerm paper (Yan et al., 2025) tests short-term change detection on SDDI1 (116 lesions, 5 images each, 66 patients) and SDDI2 (229 images in pairs) using a Siamese design, and reports that standardising image quality and alignment mattered: accuracy on SDDI1 was about 0.71 with its pipeline and about 0.60 without. That result supports treating cross-visit registration as a requirement in its own right.
+2.2 Clinical and Dermoscopic Imaging
+Single-image classification is mature on benchmark data, with recent transformer ensembles reporting accuracies in the high 90s on HAM10000. Kawahara et al. (2019) showed that 7-point checklist features can be predicted together with the diagnosis from paired clinical and dermoscopic images, and later multimodal work such as SkinM2Former extends this with cross-attention. All of these score one time point. One practical point from Chanda et al. (2024) is that HAM10000 contains several images of the same lesion, so lesion-level and patient-level splits are needed to avoid leakage between training and test sets.
+2.3 Temporal AI Approaches
+Two patterns appear in what we read. The first is pairwise Siamese comparison, used by PanDerm for dermoscopic change detection and by Jin et al. (2021) for pre- and post-treatment MRI, where two subnetworks joined at several layers compare the images. The second is a sequence model over per-visit features, as in Yu et al. Real sequences are short: Yu et al. trained on inputs of 2 to 5 images, and the Basel set has 5. Visit spacing also varies, from about three months in short-term monitoring to roughly 6 to 12 months in long-term programmes, so a model for this project needs to handle short, variable-length sequences and know the time gap between visits.
+2.4 3D Morphology and Total Body Photography
+3D total body photography (3D-TBP) captures the whole skin surface in one session. AI-supported serial 3D-TBP can flag new or evolving lesions (Gorecki et al., 2025), and a published annotation protocol lists lesion detection, segmentation, matching between sessions, change detection and ugly-duckling detection as target tasks. The main public dataset from this line is SLICE-3D: 401,059 lesion crops (15 mm by 15 mm) from 1,042 patients, only 393 of them malignant, with a patient identifier and TBP-derived measurements such as size and colour. It gives patient context and 3D-derived measurements, but each lesion appears once, so it does not show 3D change over time.
+2.5 Treatment Response
+Imaging-based response prediction is mostly radiological. In metastatic melanoma, an explainable model combining pre-treatment CT radiomics with serum LDH reached an AUC of 0.89 for response to immune checkpoint inhibitors (RECIST at three months), and longitudinal AI-derived PET/CT metrics carried prognostic value under immunotherapy (Sachpekidis et al., 2026). Jin et al. (2021) is a useful template for pairing pre- and post-treatment images. We did not find a public dataset of dermoscopic or clinical skin images before and after treatment with response labels, so for this module treatment response can be designed for but not trained on public data.
+2.6 Explainable AI
+Grad-CAM-style heatmaps are the standard explanation in dermatology classifiers, sometimes combined with uncertainty estimates, for example EfficientNetV2 with Grad-CAM++ and MC-dropout in MelanomaNet. Chanda et al. (2024) found that dermatologist-like explanations improved clinicians' trust and confidence in melanoma diagnosis. Every explanation method we found is per image; none shows which change between visits drove a prediction.
+2.7 Comparative Summary
+Study
+ | Data / task
+ | Method
+ | Takeaway for us
+ | 
+Yu et al. (2020)
+ | Serial dermoscopy, 184 patients, 747 images
+ | Spatio-temporal feature learning
+ | Sequences help; data is private
+ | 
+Yu et al. (2021)
+ | 179 biopsy-confirmed lesions, serial images
+ | Sequential model, compared with 12 clinicians
+ | Serial beat static input; data is private
+ | 
+PanDerm (2025)
+ | SDDI1: 116 lesions x 5 images; SDDI2: 229 images in pairs
+ | Foundation-model encoders in a Siamese pair
+ | Change detection is pairwise and short-term; alignment mattered
+ | 
+Kawahara et al. (2019)
+ | Derm7pt, 1,011 cases, clinical + dermoscopic
+ | Multitask multimodal CNN
+ | Checklist features can be learned; single time point
+ | 
+SkinM2Former (2025)
+ | Derm7pt, multi-label
+ | Tri-modal cross-attention transformer
+ | Multimodal fusion, still static
+ | 
+MelanomaNet (2025)
+ | ISIC 2019
+ | EfficientNetV2, Grad-CAM++, MC-dropout
+ | Explanation and uncertainty per image
+ | 
+Chanda et al. (2024)
+ | HAM10000 melanoma/nevus subset, reader study
+ | Dermatologist-like explanations
+ | Improves trust; no temporal explanation
+ | 
+SLICE-3D (2024)
+ | 401,059 TBP crops, 1,042 patients
+ | Dataset
+ | Patient context and 3D measures; no repeat visits
+ | 
+Gorecki et al. (2025)
+ | Narrative review
+ | AI with 3D-TBP
+ | Serial 3D-TBP flags new or evolving lesions
+ | 
+ICI response in melanoma (2023)
+ | CT radiomics + LDH, RECIST at 3 months
+ | Explainable machine learning
+ | AUC 0.89; radiology, not skin imaging
+ | 
+Jin et al. (2021)
+ | Pre/post-treatment MRI, rectal cancer
+ | Siamese multi-task network
+ | Template for pre/post pairing
+ | 
+Sachpekidis et al. (2026)
+ | Serial PET/CT, metastatic melanoma
+ | AI-derived longitudinal metrics
+ | Serial imaging adds prognostic value
+ | 
+Kim et al. (2022)
+ | Systematic review of dermatology datasets
+ | Fitzpatrick skin type audit
+ | Darker skin types under-represented
+ | 
+Table 1. Comparative summary of the key studies reviewed.
+2.8 Research Gaps
+Gap
+ | What we found
+ | What it means for us
+ | 
+No public longitudinal dermoscopy at scale
+ | HAM10000 and the 2020 ISIC set keep one image per follow-up sequence; the only public serial set found (SDDI1) has 116 lesions; the larger serial sets in the literature are private
+ | Training on real sequences starts from very little data; this is the main project risk
+ | 
+Change detection is pairwise and short-term
+ | PanDerm-style work compares two images over a short interval; Yu et al. use short sequences
+ | Long-horizon progression from variable-length sequences is largely open
+ | 
+3D data is cross-sectional
+ | SLICE-3D has one capture per lesion; we found no public serial 3D set
+ | 3D morphology must be derived or kept optional
+ | 
+Treatment response lacks skin-image data
+ | Response models are in CT, MRI and PET; no public pre/post-treatment dermoscopy with labels
+ | Design for it, but treat it as conditional
+ | 
+Explanations are per image
+ | Grad-CAM-style methods explain one image, not change between visits
+ | A temporal explanation (visit attention plus difference map) needs to be designed
+ | 
+Skin-tone coverage
+ | Reviewed datasets under-represent darker skin types; we have not checked this for the serial sets
+ | Subgroup evaluation and a check of metadata are needed, important for Indian skin types
+ | 
+3. Part B - Requirement Analysis
+3.1 Project Scope
+The module predicts whether a lesion is likely to progress, using several visits of the same lesion rather than one image. It is meant as decision support alongside a dermatologist, not a replacement for one. The boundaries below are our proposal and need to be confirmed with the mentor.
+In scope
+ | Conditional on data
+ | Out of scope
+ | 
+Progression-risk prediction from 2 or more dermoscopic images of the same lesion
+Lesion segmentation and cross-visit alignment
+Per-visit encoder and temporal fusion model
+Between-visit explanation (visit attention, difference map)
+Uncertainty-based referral flag
+Clinician dashboard prototype
+Lesion- and patient-level evaluation, with skin-type subgroups where metadata allow
+ | 3D morphology features (derived from 2D or TBP metadata if no real 3D series)
+Treatment-response classification
+Clinical photographs as a second modality
+Mobile capture app
+ | Autonomous diagnosis or treatment decisions
+Prospective clinical trials
+Regulatory approval and hospital deployment
+New patient data collection without a clinical partner
+ | 
+3.2 Inputs and Outputs
+Type
+ | Item
+ | Description
+ | 
+Input
+ | Serial dermoscopic images
+ | Two or more timepoints per lesion, each with a visit date
+ | 
+Input
+ | Clinical photographs
+ | Optional second view of the lesion
+ | 
+Input
+ | 3D-TBP crops or 3D-derived measures
+ | Optional; size, colour and shape measures as in SLICE-3D
+ | 
+Input
+ | Patient and acquisition metadata
+ | Age, sex, body site, device, Fitzpatrick type where available
+ | 
+Input
+ | Treatment record
+ | Type and date, only for the treatment-response part
+ | 
+Output
+ | Progression risk score
+ | Calibrated probability of clinically significant progression
+ | 
+Output
+ | Risk category
+ | Routine monitoring, shortened-interval monitoring or specialist referral
+ | 
+Output
+ | Temporal explanation
+ | Per-visit attention weights and a registered difference map
+ | 
+Output
+ | Uncertainty / referral flag
+ | Withholds an automated category when confidence is low
+ | 
+Output
+ | Treatment-response class
+ | Favourable, persistent or progression (conditional)
+ | 
+Output
+ | Audit record
+ | Log of prediction, explanation and decision
+ | 
+3.3 Functional Requirements
+ID
+ | Requirement
+ | Priority
+ | 
+FR-01
+ | The system shall ingest serial clinical photographs and dermoscopic images for a given lesion, linked by patient ID, lesion ID and visit timestamp.
+ | Core
+ | 
+FR-02
+ | The system shall ingest 3D total-body photography (3D-TBP) captures where available and associate them with the same lesion identifier and timeline.
+ | Conditional
+ | 
+FR-03
+ | The system shall perform lesion segmentation on each 2D image and, where available, on the corresponding 3D surface region.
+ | Core
+ | 
+FR-04
+ | The system shall register/align the same lesion region across visits to establish reliable spatial correspondence despite pose, angle and device variation.
+ | Core
+ | 
+FR-05
+ | The system shall extract temporal-change features: diameter/area, asymmetry, border irregularity, colour distribution, texture, vascular pattern and (where 3D data exist) volumetric/surface morphology change.
+ | Core
+ | 
+FR-06
+ | The system shall compute a calibrated longitudinal risk score representing the probability of clinically significant progression.
+ | Core
+ | 
+FR-07
+ | The system shall classify each lesion into a monitoring/referral category (routine monitoring, shortened-interval monitoring, specialist referral) based on the risk score and validated thresholds.
+ | Core
+ | 
+FR-08
+ | The system shall, for lesions with documented clinical intervention, classify the pre-/post-treatment trajectory into favourable response, persistent disease, or potential progression.
+ | Conditional
+ | 
+FR-09
+ | The system shall generate a temporal attention visualisation indicating which prior visit(s) most influenced the current prediction.
+ | Core
+ | 
+FR-10
+ | The system shall generate a visual difference map (registered before/after overlay) highlighting the image regions and changes that most contributed to the risk score.
+ | Core
+ | 
+FR-11
+ | The system shall compute a calibrated uncertainty estimate for each prediction and flag low-confidence cases for mandatory dermatologist review instead of returning an automated category.
+ | Core
+ | 
+FR-12
+ | The system shall record and report performance, calibration and referral-rate metrics disaggregated by Fitzpatrick skin type, anatomical site, acquisition device and illumination condition.
+ | Core
+ | 
+FR-13
+ | The system shall present the patient's lesion timeline, current risk score, trend, explanations and uncertainty flag through a clinician-facing dashboard.
+ | Core
+ | 
+FR-14
+ | The system shall support image capture guidance (framing/lighting consistency checks) on the companion mobile/edge application.
+ | Conditional
+ | 
+FR-15
+ | The system shall log all predictions, explanations, uncertainty flags and referral outcomes for audit and subsequent model evaluation.
+ | Core
+ | 
+3.4 Non-Functional Requirements
+ID
+ | Requirement
+ | 
+NFR-01 (Performance)
+ | Risk inference for a single lesion sequence shall complete in a clinically practical time (target: under 60 seconds server-side).
+ | 
+NFR-02 (Scalability)
+ | The pipeline and model-serving layer shall scale to a growing multi-visit, multi-patient archive without redesign of core components.
+ | 
+NFR-03 (Reliability/Safety)
+ | Any inability to compute a confident prediction shall default to a dermatologist-review flag, never a silent or default-benign output.
+ | 
+NFR-04 (Interpretability)
+ | Every risk-category output shall come with a temporal attention and/or difference-map explanation understandable without ML expertise.
+ | 
+NFR-05 (Fairness)
+ | Subgroup performance gaps (skin type, device, illumination) shall be measured continuously and not silently tolerated above an agreed threshold.
+ | 
+NFR-06 (Privacy & Security)
+ | Patient images and metadata shall be de-identified, encrypted at rest and in transit, and access-controlled.
+ | 
+NFR-07 (Interoperability)
+ | The system shall support standard healthcare formats (DICOM where applicable, FHIR for structured data).
+ | 
+NFR-08 (Usability)
+ | The dashboard shall present trend, explanation and uncertainty without requiring users to interpret raw model outputs.
+ | 
+NFR-09 (Maintainability)
+ | Model components shall be modular and independently updatable and re-trainable.
+ | 
+NFR-10 (Auditability)
+ | All predictions and referral decisions shall be logged in enough detail for retrospective clinical audit.
+ | 
+3.5 Data Requirements
+ID
+ | Data requirement
+ | 
+DR-01
+ | At least two imaging timepoints per lesion, with visit date and device metadata.
+ | 
+DR-02
+ | 3D-TBP captures where available, linked to the same lesion identifier.
+ | 
+DR-03
+ | Ground-truth outcome per lesion: histopathology, documented clinical stability, or treatment-response category, verified by a dermatologist or pathologist.
+ | 
+DR-04
+ | Patient metadata for subgroup evaluation: Fitzpatrick type (or an objective pigmentation measure), age, anatomical site, relevant history.
+ | 
+DR-05
+ | Treatment records (type, date) for lesions entering the treatment-response module.
+ | 
+DR-06
+ | Acquisition metadata for every image: camera or dermatoscope model, illumination, polarised or non-polarised mode.
+ | 
+3.6 Available Datasets
+Dataset
+ | Content
+ | Serial?
+ | Role in this project
+ | 
+HAM10000
+ | 10,015 dermoscopic images with lesion_id
+ | Several images per lesion, mostly magnification or angle variants
+ | Pretrain per-visit encoder; lesion-level splits
+ | 
+ISIC archive - Basel repeated dermoscopy (SDDI1)
+ | 116 lesions, 66 patients, 5 images each
+ | Yes
+ | Only public real sequences found; temporal benchmark (access to verify)
+ | 
+SIIM-ISIC 2020
+ | 33,126 training images with patient IDs
+ | No (one image per lesion)
+ | Encoder training; patient-level context and splits
+ | 
+ISIC 2024 SLICE-3D
+ | 401,059 TBP crops, 1,042 patients, 393 malignant
+ | No (snapshot per patient)
+ | Patient context; 3D-derived measures
+ | 
+Derm7pt
+ | 1,011 cases, clinical + dermoscopic, 7-point labels
+ | No (two views per case)
+ | Dermoscopic feature labels
+ | 
+SDDI2 and the Yu et al. serial sets
+ | 229 image pairs (Vienna); 184 patients, 747 images
+ | Yes
+ | Not public as far as we found; only through collaboration
+ | 
+Taken together, public data covers the per-visit encoder (HAM10000, ISIC 2020), checklist-feature learning (Derm7pt), patient context and TBP-derived measures (SLICE-3D), and a small amount of real serial data for testing change detection (SDDI1). It does not cover long-horizon progression labels, 3D change over time, or treatment response. Our working plan is to pretrain the encoder on the large static sets with lesion- and patient-level splits, use SDDI1 as the real-sequence benchmark, and treat any synthetic sequences as a development aid only, labelled as such in the results. Sourcing real longitudinal data through a clinical partner is the main open risk.
+3.7 Constraints and Feasibility
+Each building block (segmentation, registration, CNN or transformer encoders, temporal fusion, Grad-CAM-style explanation, MC-dropout or ensemble uncertainty) has been demonstrated separately in the literature, so the risk is data and integration rather than any single technique. The progression label is also not clean: stable lesions are labelled by follow-up and progressed ones by biopsy. Licensing needs attention too. HAM10000, SIIM-ISIC 2020 and the main SLICE-3D release are CC BY-NC, which suits research but limits commercial use or IP claims; SLICE-3D also has a CC BY "Permissive" subset of 217,477 images. Any non-public data would need ethics approval and, for prospective data, patient consent.
+3.8 Next Steps
+Before the Week 3 presentation and the Week 4 system design, we will confirm access to the Basel sequences, check the lesion_id groups in HAM10000, and agree the scope boundaries above with the mentor.
+References
+Chanda, T. et al. (2024). Dermatologist-like explainable AI enhances trust and confidence in diagnosing melanoma. Nature Communications, 15, 524.
+Gorecki, S., Tatka, A., & Brusey, J. (2025). Artificial intelligence and new technologies in melanoma diagnosis: A narrative review. Cancers, 17(24), 3896.
+Ilyosbekov, S. (2025). MelanomaNet: Explainable deep learning for skin lesion classification [Preprint]. arXiv:2512.09289.
+Jin, C. et al. (2021). Predicting treatment response from longitudinal images using multi-task deep learning. Nature Communications.
+Kawahara, J., Daneshvar, S., Argenziano, G., & Hamarneh, G. (2019). Seven-point checklist and skin lesion classification using multitask multimodal neural nets. IEEE Journal of Biomedical and Health Informatics, 23(2).
+Kim, Y. H., Kobic, A., & Vidal, N. Y. (2022). Distribution of race and Fitzpatrick skin types in data sets for deep learning in dermatology: A systematic review. Journal of the American Academy of Dermatology, 87(2), 460-461.
+Kurtansky, N. R. et al. (2024). The SLICE-3D dataset: 400,000 skin lesion image crops extracted from 3D TBP for skin cancer detection. Scientific Data, 11, 884.
+Machine learning improves the prediction of responses to immune checkpoint inhibitors in metastatic melanoma (2023). Cancers, 15(10), 2700.
+A protocol for annotation of total body photography for machine learning to analyze skin phenotype and lesion classification (2024). PMC11035726.
+Rotemberg, V. et al. (2021). A patient-centric dataset of images and metadata for identifying melanomas using clinical context. Scientific Data, 8, 34.
+Sachpekidis, C. et al. (2026). Beyond target lesions: Prognostic value of longitudinal AI-derived whole-body [18F]FDG PET/CT metrics in metastatic melanoma. European Journal of Nuclear Medicine and Molecular Imaging.
+Tschandl, P., Rosendahl, C., & Kittler, H. (2018). The HAM10000 dataset, a large collection of multi-source dermatoscopic images of common pigmented skin lesions. Scientific Data, 5, 180161.
+Yan, S. et al. (2025). A multimodal vision foundation model for clinical dermatology (PanDerm). Nature Medicine.
+Yu, Z. et al. (2020). Melanoma diagnosis with spatio-temporal feature learning on sequential dermoscopic images. MICCAI 2020. arXiv:2006.10950.
+Yu, Z. et al. (2021). Early melanoma diagnosis with sequential dermoscopic images. arXiv:2110.05976.
+Zhang, Y. et al. (2025). A novel perspective for multi-modal multi-label skin lesion classification (SkinM2Former). WACV 2025.

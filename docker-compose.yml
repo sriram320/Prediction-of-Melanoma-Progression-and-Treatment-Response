@@ -1,0 +1,83 @@
+name: melanotrack
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  ML_SERVICE_URL: http://ml-service:8100
+  STORAGE_ROOT: /data/storage
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # host 5433 to avoid clashing with a local PostgreSQL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ml-service:
+    build: ./ml_service
+    restart: unless-stopped
+    environment:
+      MODEL_ADAPTER: ${MODEL_ADAPTER:-mock}
+      MODEL_DIR: ${MODEL_DIR:-/models/mock/0.1.0}
+      MOCK_FORCE_ERROR: ${MOCK_FORCE_ERROR:-0}
+    volumes:
+      - ./ml_service/models:/models
+    expose:
+      - "8100"        # internal network only (never published)
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment: *backend-env
+    command: sh -c "alembic upgrade head && python -m app.scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
+    volumes:
+      - ./storage:/data/storage
+    ports:
+      - "8000:8000"   # exposed for local dev (Vite proxy); remove in production
+    depends_on:
+      db:
+        condition: service_healthy
+      ml-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment: *backend-env
+    command: python -m app.workers.inference_worker
+    volumes:
+      - ./storage:/data/storage
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

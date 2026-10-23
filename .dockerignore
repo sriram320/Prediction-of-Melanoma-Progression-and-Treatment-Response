@@ -1,0 +1,13 @@
+# Build context for deploy/web.Dockerfile (repo root). Keep it small and free of secrets.
+.env
+**/node_modules
+frontend/dist
+storage
+backend
+ml_service
+.agents
+docs
+scripts
+*.docx
+**/.venv
+**/__pycache__
