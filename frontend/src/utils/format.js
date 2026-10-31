@@ -18,3 +18,18 @@ export function formatDateTime(value) {
 export function errorMessage(err, fallback = "Something went wrong. Please try again.") {
   return err?.detail || err?.message || fallback;
 }
+
+/** Maps a 422 response's `errors[]` to {field: message} for inline form errors. */
+export function fieldErrors(err) {
+  const out = {};
+  for (const e of err?.errors || []) {
+    const field = String(e.field || "").split(".").pop();
+    if (field && !out[field]) out[field] = e.message.replace(/^Value error, /, "");
+  }
+  return out;
+}
+
+export function todayISO() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}

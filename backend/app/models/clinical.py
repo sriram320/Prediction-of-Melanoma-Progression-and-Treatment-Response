@@ -49,6 +49,8 @@ class Image(Base):
     hospital_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("hospitals.id"))
     modality: Mapped[str] = mapped_column(ImageModality)
     file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("stored_files.id"))
+    source_file_id: Mapped[uuid.UUID | None] = mapped_column(  # original DICOM; file_id holds the PNG
+        UUID(as_uuid=True), ForeignKey("stored_files.id"))
     mask_file_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("stored_files.id"))
     mask_confidence: Mapped[float | None] = mapped_column(REAL)
     mask_confirmed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))

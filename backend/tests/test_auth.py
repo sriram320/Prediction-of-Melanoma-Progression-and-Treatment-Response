@@ -1,7 +1,7 @@
 import psycopg
 import pytest
 
-from tests.conftest import ADMIN_EMAIL, DEMO_PASSWORD, auth, staff_login
+from tests.conftest import DEMO_PASSWORD, auth, staff_login
 
 API = "/api/v1"
 
@@ -15,15 +15,22 @@ def test_health_is_public_and_reports_mock_model(client):
     assert body["ml_service"] == "unavailable"
 
 
-def test_super_admin_must_change_password_first(client):
-    r = client.post(f"{API}/auth/admin/login", json={"email": ADMIN_EMAIL, "password": "InitialPass123!"})
-    if r.status_code == 401:
-        pytest.skip("password already changed by the admin_token fixture")
+def test_temporary_password_must_be_changed_first(client):
+    demo_admin = staff_login(client, "admin@demo.example")
+    r = client.post(f"{API}/hospital/staff", headers=auth(demo_admin),
+                    json={"role": "technician", "full_name": "First Login", "email": "firstlogin@demo.example"})
+    temp = r.json()["temp_password"]
+    r = client.post(f"{API}/auth/hospital/login",
+                    json={"hospital_code": "DEMO01", "email": "firstlogin@demo.example", "password": temp})
     token = r.json()["access_token"]
     assert r.json()["user"]["must_change_password"] is True
-    r = client.get(f"{API}/admin/hospitals", headers=auth(token))
+    r = client.get(f"{API}/patients", headers=auth(token))
     assert r.status_code == 403 and r.json()["code"] == "PASSWORD_CHANGE_REQUIRED"
     assert client.get(f"{API}/auth/me", headers=auth(token)).status_code == 200
+    r = client.post(f"{API}/auth/change-password", headers=auth(token),
+                    json={"current_password": temp, "new_password": "FirstLogin2026"})
+    assert r.status_code == 200 and r.json()["must_change_password"] is False
+    assert client.get(f"{API}/patients", headers=auth(token)).status_code == 200
 
 
 def test_hospital_login_sets_refresh_cookie_and_me(client):

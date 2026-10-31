@@ -23,17 +23,22 @@ async def health(db: AsyncSession = Depends(get_db)) -> dict:
     except Exception:
         db_status = "error"
 
-    ml_status = "unavailable"
+    ml_status, ml_model = "unavailable", None
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             r = await client.get(f"{settings.ml_service_url}/health")
             if r.status_code == 200:
                 ml_status = "ok"
-    except httpx.HTTPError:
+                body = r.json()
+                ml_model = {"name": body.get("model_name"), "version": body.get("model_version"),
+                            "is_mock": body.get("is_mock")}
+    except (httpx.HTTPError, ValueError):
         pass
 
     # Fail safe: if we cannot tell which model is active, treat it as a mock (watermark stays on).
     if model is None:
         model = {"name": None, "version": None, "is_mock": True}
+    # A mismatch means every analysis is refused as `model_error` until the registry and ml-service agree.
+    model_match = ml_model is not None and all(ml_model[k] == model[k] for k in ("name", "version", "is_mock"))
     return {"status": "ok" if db_status == "ok" else "degraded", "db": db_status, "ml_service": ml_status,
-            "model": model}
+            "model": model, "ml_model": ml_model, "model_match": model_match}

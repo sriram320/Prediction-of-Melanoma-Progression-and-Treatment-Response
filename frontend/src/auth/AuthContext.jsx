@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { onSessionEnd, post, refreshSession, setAccessToken } from "../api/client.js";
+import { clearFileCache } from "../utils/files.js";
 
 const AuthContext = createContext(null);
 
@@ -13,6 +14,7 @@ export function AuthProvider({ children }) {
     setAccessToken(null);
     setUser(null);
     queryClient.clear();
+    clearFileCache();
   }, [queryClient]);
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export function AuthProvider({ children }) {
   const acceptLogin = useCallback((data) => {
     setAccessToken(data.access_token);
     queryClient.clear();
+    clearFileCache();
     setUser(data.user);
     return data.user;
   }, [queryClient]);

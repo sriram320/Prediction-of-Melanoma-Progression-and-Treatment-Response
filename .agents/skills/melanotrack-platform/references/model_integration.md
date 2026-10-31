@@ -10,8 +10,15 @@ contract, so swapping the mock for the real model means writing **one adapter fi
 - Caller: `backend/app/workers/inference_worker.py`. It decrypts images to memory (never to disk)
   and sends **only de-identified fields**.
 - Timeout: 60 s (NFR-01). Exceeding it raises `model_error`.
+- Local dev: `scriptsdevstart_ml_service.ps1` (port 8100). Tests: `cd ml_service; ..ackend.venvScriptspython -m pytest -q tests`.
+  The backend suite also mounts this service in-process (`backend/tests/test_analysis.py`), so contract drift fails CI.
 
-## 2. Contract (`ml_service/app/contract.py`, keep identical in `backend/app/schemas/inference.py`)
+## 2. Contract (`ml_service/app/contract.py`, keep identical in `backend/app/schemas/inference.py`; a backend test compares the files)
+
+P3 additions (both backwards compatible): reason code `ambiguous_prediction` (Week 6 Algorithm 4), and optional
+per-visit outputs `visits: list[VisitResult]` (Week 8: measured features per visit and an optional single-image
+`melanoma_probability`). `change_score` and `uncertainty_score` are bounded to [0, 1]. The listing below is the
+P0 draft; the code file is authoritative.
 ```python
 from datetime import date
 from typing import Literal, Optional
@@ -97,17 +104,22 @@ class ModelAdapter(Protocol):
 Selected by env `MODEL_ADAPTER` (`mock` by default). Artifacts live in `MODEL_DIR=/models/<name>/<version>`.
 The registry is in `adapters/__init__.py`: `ADAPTERS = {"mock": MockAdapter, ...}`.
 
-## 4. MockAdapter behaviour (deterministic, for UI and demos)
-- Segmentation: grayscale → Otsu threshold → largest contour → mask; confidence = contour solidity.
+## 4. MockAdapter behaviour (deterministic, for UI and demos; numpy + Pillow only)
+- Works at 256 px. Segmentation: luminance → Otsu threshold ignoring the dark dermoscope ring (< 30) → largest
+  component not touching the border → holes filled; confidence = solidity (area / convex hull).
 - Quality: Laplacian variance (blur), bright-pixel ratio (glare).
-- Registration: centroid + principal-axis alignment of masks; quality = warped-mask IoU.
-- Difference map: ΔE (Lab) inside the union of masks, colour-mapped PNG.
-- risk_score = sigmoid(k · relative area growth per 90 days + colour-variance change), seeded by the image hash
-  so that results are reproducible.
-- Attention: softmax of per-visit change magnitude.
-- Referral: if quality is low, registration IoU < 0.5, or uncertainty > 0.35.
+- Registration: centroid + principal-axis rotation onto the baseline (3x3, original pixels); quality = IoU of the
+  **size-normalised** shapes, so genuine growth is not mistaken for misalignment.
+- Features per visit: area vs baseline, Lab colour variation, mirror asymmetry, border irregularity (perimeter²/4πA).
+- Difference map: ΔE (Lab) between the baseline and the aligned latest image inside the union of masks, colour-mapped
+  over the baseline. Saliency: blurred pigment-darkness inside the latest mask (a stand-in for Grad-CAM++).
+- risk_score = sigmoid(-2 + 5·growth per 90 days + 1.5·colour-variation change + 2·asymmetry change) ± 0.03 seeded by
+  the image hashes (reproducible). ~0 %/yr growth → ~0.12, ~100 %/yr → ~0.3, ~200 %/yr → ~0.6. Category thresholds 0.35 / 0.65.
+- Attention: softmax of visit-to-visit change magnitude.
+- Referral: image quality < 0.4, registration < 0.5, segmentation confidence < 0.6, uncertainty > 0.35, a score within
+  0.015 of a threshold (`ambiguous_prediction`), or no lesion found in a visit.
 - `MOCK_FORCE_ERROR=1` raises an exception (used to test the safety wrapper).
-- Always returns `is_mock=True`.
+- Always returns `is_mock=True`; its version is the last part of `MODEL_DIR`.
 
 ## 5. Integrating the real model (checklist)
 1. Receive from teammates: weights (TorchScript/ONNX preferred), preprocessing spec, sequence and time-gap
@@ -128,10 +140,20 @@ The registry is in `adapters/__init__.py`: `ADAPTERS = {"mock": MockAdapter, ...
 ## 6. Backend safety wrapper (`backend/app/services/inference.py`), applied to every result
 ```text
 if visits_with_valid_images < 2      -> is_baseline=True, risk_score=None, risk_category=None
-on exception / timeout / validation error -> referral_flag=True, reason_codes=['model_error'], category=None
-if any image mask_confidence < SEG_THRESHOLD and not mask_confirmed -> referral_flag=True, add 'segmentation_low_confidence'
+on exception / timeout / unreachable / validation error -> referral_flag=True, reason_codes=['model_error'], category=None
+if output model name/version/is_mock != the active model_versions row -> model_error (watermark must never lie)
+if not baseline and no referral and (risk_score or risk_category missing) -> model_error
+if any reason code is present        -> referral_flag=True (even if the model forgot the flag)
+if any image mask_confidence < SEGMENTATION_CONFIDENCE_THRESHOLD and not mask_confirmed -> referral, add 'segmentation_low_confidence'
 if referral_flag                     -> risk_category=None   (DB CHECK also enforces this)
-store maps as encrypted stored_files; write audit 'prediction.create' with model version
+store maps and masks as encrypted stored_files (a doctor-confirmed mask is never overwritten);
+write audit 'prediction.create' with model version, outcome and any error
 ```
+Queueing (`POST /lesions/{id}/analyze`): needs recorded consent, a non-excluded visit with scans and an active model;
+one queued/running job per lesion (partial unique index). Visits used: non-excluded, with scans, up to the trigger visit.
+The input is de-identified: pseudonym-based `lesion_ref`, age band, sex, site, skin type, **yes/no** history only
+(free-text notes never leave). Predictions are never replaced: a re-run adds a new row and the newest is "latest".
+Worker: `app/workers/inference_worker.py` (`FOR UPDATE SKIP LOCKED`), embedded in the API when `EMBEDDED_WORKER=true`;
+a job stuck in `running` for 5 min is re-queued, and failed after 3 attempts.
 Embedding cache (NFR-01): the ml-service may cache per-image embeddings keyed by `(image sha256, model_version)`
 in `/models/cache/`. The backend sends the sha256 alongside each image so this is possible.

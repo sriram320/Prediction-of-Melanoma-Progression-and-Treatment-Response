@@ -89,23 +89,36 @@ export function refreshSession() {
 const NO_RETRY = ["/auth/refresh", "/auth/logout", "/auth/hospital/login", "/auth/patient/login",
   "/auth/admin/login", "/auth/patient/activate"];
 
-export async function api(path, options = {}) {
+/** Sends with one silent refresh-and-retry on 401; returns the raw Response. */
+async function request(path, options = {}) {
   let res = await send(path, options);
   if (res.status === 401 && accessToken && !NO_RETRY.includes(path)) {
     try {
       await refreshSession();
     } catch {
       sessionEndHandler();
-      return parse(res);
+      return res;
     }
     res = await send(path, options);
   }
-  return parse(res);
+  return res;
+}
+
+export async function api(path, options = {}) {
+  return parse(await request(path, options));
+}
+
+/** Fetches a protected binary (files are never public URLs); throws ApiError on failure. */
+export async function getBlob(path) {
+  const res = await request(path);
+  if (!res.ok) await parse(res);
+  return res.blob();
 }
 
 export const get = (path) => api(path);
 export const post = (path, body) => api(path, { method: "POST", body });
 export const patch = (path, body) => api(path, { method: "PATCH", body });
+export const postForm = (path, formData) => api(path, { method: "POST", body: formData });
 
 export function qs(params) {
   const s = new URLSearchParams();

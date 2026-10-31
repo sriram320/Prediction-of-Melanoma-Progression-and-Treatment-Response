@@ -39,7 +39,9 @@ services:
     build: ./backend
     restart: unless-stopped
     env_file: .env
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      EMBEDDED_WORKER: "false"   # the worker service below processes analysis jobs
     command: sh -c "alembic upgrade head && python -m app.scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
     volumes:
       - ./storage:/data/storage
@@ -62,7 +64,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment: *backend-env
-    command: python -m app.workers.inference_worker
+    command: python -m app.workers.inference_worker   # scale with: docker compose up -d --scale worker=2
     volumes:
       - ./storage:/data/storage
     depends_on:

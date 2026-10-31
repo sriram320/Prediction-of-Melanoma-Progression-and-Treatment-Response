@@ -130,7 +130,7 @@ CREATE TABLE lesions (
   patient_id          uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   hospital_id         uuid NOT NULL REFERENCES hospitals(id),
   label               varchar(50) NOT NULL,            -- 'L1 - left upper back'
-  anatomical_site     varchar(50) NOT NULL,
+  anatomical_site     varchar(50) NOT NULL,            -- ISIC group slug, validated by the API (api_contract P2)
   status              lesion_status NOT NULL DEFAULT 'active',
   first_seen_visit_id uuid,                            -- FK added below
   created_at          timestamptz NOT NULL DEFAULT now()
@@ -161,6 +161,7 @@ CREATE TABLE images (
   hospital_id            uuid NOT NULL REFERENCES hospitals(id),
   modality               image_modality NOT NULL,
   file_id                uuid NOT NULL REFERENCES stored_files(id),
+  source_file_id         uuid REFERENCES stored_files(id),  -- original DICOM (0002); file_id is the PNG
   mask_file_id           uuid REFERENCES stored_files(id),
   mask_confidence        real,
   mask_confirmed_by      uuid REFERENCES users(id),
@@ -173,6 +174,7 @@ CREATE TABLE images (
   created_at             timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_images_visit ON images(visit_id);
+CREATE INDEX ix_images_file ON images(file_id);            -- 0002: file access checks
 
 CREATE TABLE documents (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -188,6 +190,7 @@ CREATE TABLE documents (
   created_at         timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_documents_patient ON documents(patient_id, document_date DESC);
+CREATE INDEX ix_documents_file ON documents(file_id);      -- 0002: file access checks
 
 CREATE TABLE treatment_events (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -231,6 +234,8 @@ CREATE TABLE inference_jobs (
   finished_at      timestamptz
 );
 CREATE INDEX ix_jobs_queue ON inference_jobs(created_at) WHERE status = 'queued';
+CREATE INDEX ix_jobs_lesion ON inference_jobs(lesion_id, created_at DESC);                        -- 0003
+CREATE UNIQUE INDEX ux_jobs_one_active ON inference_jobs(lesion_id) WHERE status IN ('queued','running'); -- 0003
 -- worker: SELECT ... WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
 
 CREATE TABLE predictions (
@@ -252,11 +257,12 @@ CREATE TABLE predictions (
   raw_output         jsonb,
   inference_ms       int,
   created_at         timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (visit_id, model_version_id),
+  -- (0003) no UNIQUE(visit_id, model_version_id): re-runs keep history; newest = latest
   CHECK (NOT referral_flag OR risk_category IS NULL),            -- NFR-03 / Week 4 §6
   CHECK (NOT is_baseline OR (risk_score IS NULL AND risk_category IS NULL))
 );
 CREATE INDEX ix_predictions_lesion ON predictions(lesion_id, created_at);
+CREATE INDEX ix_predictions_visit ON predictions(visit_id, created_at DESC);   -- 0003
 
 CREATE TABLE explanations (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),

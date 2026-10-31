@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Files
     storage_root: str = "/data/storage"
     storage_master_key: str = "change-me"
+    max_upload_mb: int = 50
+    max_files_per_upload: int = 10
 
     # Seed
     seed_superadmin_email: str = "admin@melanotrack.example"
@@ -39,9 +41,14 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]
 
-    # AI model service
+    # AI model service and inference worker
     ml_service_url: str = "http://ml-service:8100"
     inference_timeout_s: int = 60
+    embedded_worker: bool = True  # run the job worker inside the API process (local dev); compose uses its own
+    worker_poll_s: float = 1.0
+    job_stale_after_s: int = 300  # a 'running' job older than this is assumed orphaned and re-queued
+    job_max_attempts: int = 3
+    segmentation_confidence_threshold: float = 0.6
 
     @field_validator("jwt_secret")
     @classmethod

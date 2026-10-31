@@ -30,6 +30,8 @@ const PATHS = {
   arrowLeft: "M19 12H5M12 19l-7-7 7-7",
   arrowRight: "M5 12h14M12 5l7 7-7 7",
   activity: "M22 12h-4l-3 9L9 3l-3 9H2",
+  clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2",
+  play: "M6 4l14 8-14 8z",
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, title, ...rest }) {

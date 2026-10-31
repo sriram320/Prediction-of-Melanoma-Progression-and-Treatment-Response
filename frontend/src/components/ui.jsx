@@ -33,6 +33,15 @@ export function TextInput({ id, label, hint, error, className = "", ...rest }) {
   );
 }
 
+export function TextArea({ id, label, hint, error, ...rest }) {
+  return (
+    <Field id={id} label={label} hint={hint} error={error}>
+      <textarea id={id} className="textarea" aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined} {...rest} />
+    </Field>
+  );
+}
+
 export function Select({ id, label, hint, error, options, ...rest }) {
   return (
     <Field id={id} label={label} hint={hint} error={error}>
@@ -108,7 +117,7 @@ export function ComingSoon({ phase, title, items = [], icon = "timeline" }) {
   );
 }
 
-export function Modal({ id, title, onClose, children, footer, dismissible = true }) {
+export function Modal({ id, title, onClose, children, footer, dismissible = true, wide = false }) {
   const titleId = useId();
   const ref = useRef(null);
   const closeRef = useRef(onClose);
@@ -127,7 +136,8 @@ export function Modal({ id, title, onClose, children, footer, dismissible = true
   }, []);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && dismissible && onClose?.()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} id={id} ref={ref} tabIndex={-1}>
+      <div className={wide ? "modal modal--wide" : "modal"} role="dialog" aria-modal="true" aria-labelledby={titleId}
+        id={id} ref={ref} tabIndex={-1}>
         <div className="modal__header">
           <h2 id={titleId}>{title}</h2>
           {dismissible && (

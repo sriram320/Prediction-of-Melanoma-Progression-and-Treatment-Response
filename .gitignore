@@ -56,3 +56,7 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated synthetic scans for trying uploads
+sample_scans/
+backend/sample_scans/

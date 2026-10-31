@@ -68,7 +68,12 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 - **Local dev (native, Windows):** once: `scripts\dev\setup_local_db.ps1` (creates role/db from `.env`; asks for
   the `postgres` password). Then `scripts\dev\start_backend.ps1` (migrate + seed + uvicorn :8000),
   `scripts\dev\start_ml_service.ps1` (:8100), and `cd frontend && npm run dev` (:5173, proxies `/api`).
-- **Local tests:** `cd backend && .venv\Scripts\python -m pytest -q` (creates/drops `melanotrack_test`; role needs CREATEDB).
+- **Local tests:** `cd backend && .venv\Scripts\python -m pytest -q` (creates/drops `melanotrack_test` on the server
+  from `DATABASE_URL`/`.env`; role needs CREATEDB; files go to a temp folder, never to `storage/`).
+- **Synthetic scans** (no real patient data): the demo seed adds a 3-visit lesion for `patient@demo.example`;
+  `python -m app.scripts.synthetic <dir>` writes 3 JPEGs for trying uploads.
+- **Protected files in the SPA:** never put `/api/v1/files/...` in an `<img src>` (no token is sent). Use
+  `SecureImage` / `utils/files.js` (fetch with the token → blob: URL).
 - **Windows Smart App Control** on the dev laptop blocks low-reputation native DLLs (greenlet 3.5.x was blocked).
   Pin known-good versions (`greenlet==3.1.1`) instead of upgrading native wheels blindly.
 - **Demo accounts** (SEED_DEMO=true) use the reserved `.example` domain (`.local` fails email validation):
@@ -83,6 +88,9 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 - **Frontend dev (hot reload):** `cd frontend && npm run dev` (proxy `/api` → `http://localhost:8000`).
 - **Integrate the real model:** follow [model_integration.md §5](references/model_integration.md).
 - **Verify the safety wrapper:** set `MOCK_FORCE_ERROR=1` on ml-service, run analyze, and expect `referral_flag=true`.
+  (Automated in `backend/tests/test_analysis.py`, which mounts the real ml-service in-process.)
+- **Analysis jobs locally:** the API runs the worker itself (`EMBEDDED_WORKER=true`); start the ml-service too or every
+  analysis becomes a `model_error` referral. `GET /api/v1/health` shows `model_match` (registry vs ml-service).
 
 ## 6. Coding conventions
 - API prefix `/api/v1`; routers in `app/api/v1/<group>.py`; business logic lives in `app/services/`, not in routers.
@@ -98,8 +106,8 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 |---|---|
 | P0 Foundations (compose, skeletons, design system) | ✅ Done 2026-10-23 (native local run verified; `docker compose up` not yet run) |
 | P1 Auth & tenancy | ✅ Done 2026-10-23 (20 backend tests pass; super-admin + hospital-admin consoles; other portals are shells) |
-| P2 Records & encrypted files | ⏳ Not started |
-| P3 Inference pipeline (mock) | ⏳ Not started |
+| P2 Records & encrypted files | ✅ Done 2026-10-24 (36 backend tests pass; staff patient register/record/lesion timeline/uploads/documents; patient My scans + Documents) |
+| P3 Inference pipeline (mock) | ✅ Done 2026-10-31 (50 backend + 10 ml-service tests; analysis runs in ~2.6 s on the demo lesion; doctor/admin analysis panel, technician jobs page) |
 | P4 Doctor review & PDF reports | ⏳ Not started |
 | P5 Dashboards, fairness, audit viewer | ⏳ Not started |
 | P6 Real model integration | ⏳ Waiting for teammates' trained model |
@@ -107,11 +115,12 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 
 ## 8. Open questions for the user (remove when answered)
 - Patient login: implemented as email **or** phone + password (per api_contract). Is SMS OTP needed?
-- Week 6 Algorithm 4 emits reason code `ambiguous_prediction`, which is not in the contract's `ReasonCode` list
-  (the safety wrapper would turn it into `model_error`). Add it before P3/P6?
-- Week 8 asks for per-visit outputs (single-image melanoma probability, per-visit Grad-CAM, per-visit feature
-  trends). The contract has no fields for them yet. Extend `PredictionOutput` before P3?
-- Can patients see raw scan images before a report is released? (Current plan: yes, images only.)
+- P3 added `ambiguous_prediction` to the reason codes and optional per-visit outputs (`visits[].features`,
+  `melanoma_probability`) to the contract. Per-visit Grad-CAM images are not in the contract yet: needed?
+- P3 requires recorded consent before an analysis can be queued. Confirm this is the hospital policy.
+- Can patients see raw scan images before a report is released? (Implemented as yes, images only, excluded
+  visits hidden; never quality scores, notes or AI output. Confirm.)
+- Should technicians be able to remove a wrongly uploaded image? (P2 has no delete; a doctor can exclude the visit.)
 - Does the server have an NVIDIA GPU? (Decides CUDA vs CPU torch in ml-service.)
 - Hosting target (lab machine / cloud VM / local demo) and domain for HTTPS.
 - Keep the name "MelanoTrack"?

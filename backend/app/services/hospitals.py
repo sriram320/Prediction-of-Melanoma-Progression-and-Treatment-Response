@@ -94,6 +94,10 @@ async def update_hospital(db: AsyncSession, hospital_id: uuid.UUID, data: Hospit
 
 async def hospital_stats(db: AsyncSession, hospital_id: uuid.UUID) -> HospitalStats:
     unreviewed = ~exists().where(ClinicianReview.prediction_id == Prediction.id)
+    # Re-running an analysis keeps the older results; only each lesion's newest one is awaiting review.
+    latest = (select(Prediction.id).where(Prediction.hospital_id == hospital_id)
+              .distinct(Prediction.lesion_id).order_by(Prediction.lesion_id, Prediction.created_at.desc()))
+    current = Prediction.id.in_(latest)
 
     async def count(stmt) -> int:
         return int(await db.scalar(stmt) or 0)
@@ -103,9 +107,9 @@ async def hospital_stats(db: AsyncSession, hospital_id: uuid.UUID) -> HospitalSt
         lesions=await count(select(func.count(Lesion.id)).where(Lesion.hospital_id == hospital_id)),
         visits=await count(select(func.count(Visit.id)).where(Visit.hospital_id == hospital_id)),
         pending_reviews=await count(select(func.count(Prediction.id)).where(
-            Prediction.hospital_id == hospital_id, Prediction.is_baseline.is_(False), unreviewed)),
+            Prediction.hospital_id == hospital_id, Prediction.is_baseline.is_(False), current, unreviewed)),
         open_referrals=await count(select(func.count(Prediction.id)).where(
-            Prediction.hospital_id == hospital_id, Prediction.referral_flag.is_(True), unreviewed)),
+            Prediction.hospital_id == hospital_id, Prediction.referral_flag.is_(True), current, unreviewed)),
         reports_released=await count(select(func.count(Report.id)).where(
             Report.hospital_id == hospital_id, Report.status == "released")),
         staff=await count(select(func.count(User.id)).where(

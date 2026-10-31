@@ -166,7 +166,9 @@ erDiagram
 | Deduplication | SHA-256 of the plaintext; `UNIQUE(hospital_id, sha256)` (Week 4 M1 "duplicates detected by hash") |
 | Accepted types | JPEG, PNG, TIFF, DICOM (`.dcm`, converted to PNG plus metadata via `pydicom`), PDF |
 | Size limit | 50 MB per file (configurable) |
-| Serving | **Never served as static files.** `GET /v1/files/{id}/content` checks permissions, decrypts as a stream and writes an audit entry. Thumbnails are generated and cached the same way. |
+| Serving | **Never served as static files.** `GET /v1/files/{id}/content` checks permissions, decrypts and writes an audit entry. Thumbnails are generated once and cached encrypted with the file's own key. The SPA fetches files with the access token and shows them through in-memory `blob:` URLs. |
+| Who may read a file | Derived from what the file is attached to: a scan → hospital staff or the patient it belongs to; a document → staff, or the patient once a doctor or admin shares it. Anything not covered by a rule is refused. |
+| Upload hygiene | Type detected from the file's content, not its name. EXIF/GPS, comments and XMP are removed (the colour profile is kept); TIFF and DICOM are stored as lossless PNG, with the original DICOM kept encrypted for staff. A quick quality pre-check flags blur, glare, under/over-exposure and low resolution. |
 | Key rotation | Only the DEKs are re-wrapped; file contents are not re-encrypted. |
 
 > [!CAUTION]
@@ -344,15 +346,15 @@ the browser sees a single origin. Docker Compose (with PostgreSQL 16) remains th
 
 ## 13. Phased roadmap
 
-Status as of 2026-10-23: **P0 and P1 are done** (verified with a native local run and 20 passing backend tests;
-`docker compose up` has not been run yet). P2 is next.
+Status as of 2026-10-31: **P0-P3 are done** (verified with a native local run against PostgreSQL 18, 50 backend and
+10 ml-service tests; `docker compose up` has not been run yet). P4 (doctor review and PDF reports) is next.
 
 | Phase | Deliverable | Done when |
 |---|---|---|
 | **P0 Foundations** ✅ | Repo skeleton, Docker Compose (postgres, backend, web [SPA + Caddy], ml-service, worker), Alembic baseline, design system `index.css` | `docker compose up` serves the landing page and `GET /api/v1/health` returns OK |
 | **P1 Auth & tenancy** ✅ | Hospitals, users, two login portals, refresh tokens, RBAC, audit log with hash chain, seed super admin | Each role can log in and only sees its own portal; audit rows are written |
-| **P2 Records & files** | Patients + identity, invites/activation, lesions, visits, encrypted upload/download, documents, image viewer | Technician uploads a 3-visit lesion; patient logs in and sees their images and visible documents |
-| **P3 Inference (mock)** | Job queue, worker, ml-service with `MockAdapter`, predictions/explanations, safety wrapper | Analyze returns a result in under 60 s; a forced error produces a referral flag |
+| **P2 Records & files** ✅ | Patients + identity, invites/activation, lesions, visits, encrypted upload/download, documents, image viewer | Technician uploads a 3-visit lesion; patient logs in and sees their images and visible documents |
+| **P3 Inference (mock)** ✅ | Job queue, worker, ml-service with `MockAdapter`, predictions/explanations, safety wrapper | Analyze returns a result in under 60 s; a forced error produces a referral flag |
 | **P4 Review & reports** | Doctor worklist, analysis view, override, mask correction, PDF reports, sign/release, patient report view | Released PDF is downloadable by the patient; drafts are invisible to the patient |
 | **P5 Dashboards** | Risk trend charts, hospital stats, fairness report (S1), audit viewer | Subgroup table renders from prediction and review data |
 | **P6 Real model** | Teammates' model behind the adapter, test vectors pass, model version registry | `MODEL_ADAPTER=<real>` passes the regression tests; watermark removed |

@@ -4,7 +4,6 @@ Run: `python -m app.scripts.seed`. Safe to run on every start; existing rows are
 """
 import asyncio
 import logging
-import secrets
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -13,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.security import hash_password, normalize_invite_code, sha256_hex
-from app.models import Hospital, ModelVersion, Patient, PatientIdentity, PatientInvite, User
+from app.models import (Document, Hospital, Image, Lesion, ModelVersion, Patient, PatientIdentity, PatientInvite,
+                        User, Visit)
+from app.scripts import synthetic
+from app.services import files as files_svc
+from app.services import imaging
+from app.services.patients import age_band, new_pseudonym
 
 log = logging.getLogger("seed")
 
@@ -24,20 +28,6 @@ DEMO_STAFF = [
     ("doctor", "Dr. Kiran Rao", "doctor@demo.example", "KMC-45120"),
     ("technician", "Ravi Kumar", "tech@demo.example", None),
 ]
-
-
-def age_band(dob: date, today: date | None = None) -> str:
-    today = today or date.today()
-    years = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-    if years >= 90:
-        return "90+"
-    lo = (years // 10) * 10
-    return f"{lo}-{lo + 9}"
-
-
-def new_pseudonym() -> str:
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    return "MT-" + "".join(secrets.choice(alphabet) for _ in range(8))
 
 
 async def seed_super_admin(db: AsyncSession) -> None:
@@ -104,12 +94,69 @@ async def seed_demo(db: AsyncSession) -> None:
              DEMO_HOSPITAL_CODE, DEMO_INVITE_CODE)
 
 
+async def _demo_scan(db: AsyncSession, visit: Visit, tech: User, index: int, seed: int) -> None:
+    raw = synthetic.lesion_image(index, seed=seed)
+    prepared = imaging.prepare_scan(raw, imaging.JPEG)
+    stored, _ = await files_svc.store(db, hospital_id=visit.hospital_id, data=prepared.data, mime=prepared.mime,
+                                      filename=f"synthetic_visit_{index + 1}.jpg", uploaded_by=tech.id)
+    db.add(Image(visit_id=visit.id, hospital_id=visit.hospital_id, modality="dermoscopic", file_id=stored.id,
+                 width=prepared.width, height=prepared.height, quality_score=prepared.quality_score,
+                 quality_flags=prepared.quality_flags))
+    visit.quality_score, visit.quality_flags = prepared.quality_score, prepared.quality_flags
+
+
+async def _demo_lesion(db: AsyncSession, patient: Patient, tech: User, label: str, site: str,
+                       days_ago: list[int], seed: int) -> Lesion:
+    lesion = Lesion(patient_id=patient.id, hospital_id=patient.hospital_id, label=label, anatomical_site=site)
+    db.add(lesion)
+    await db.flush()
+    for index, ago in enumerate(days_ago):
+        visit = Visit(lesion_id=lesion.id, hospital_id=patient.hospital_id,
+                      visit_date=date.today() - timedelta(days=ago), device_model="DermLite DL4 (synthetic)",
+                      polarised=True, notes="Synthetic demo image, not a real patient.", created_by=tech.id)
+        db.add(visit)
+        await db.flush()
+        if index == 0:
+            lesion.first_seen_visit_id = visit.id
+        await _demo_scan(db, visit, tech, index, seed)
+    return lesion
+
+
+async def seed_demo_records(db: AsyncSession) -> None:
+    """Synthetic lesions and documents for the demo patients, added once (also to an existing demo hospital)."""
+    hospital = await db.scalar(select(Hospital).where(Hospital.code == DEMO_HOSPITAL_CODE))
+    if hospital is None:
+        return
+    patients = {p.mrn: p for p in (await db.scalars(select(Patient).where(Patient.hospital_id == hospital.id))).all()}
+    tech = await db.scalar(select(User).where(User.hospital_id == hospital.id, User.role == "technician"))
+    p1, p2 = patients.get("DEMO-0001"), patients.get("DEMO-0002")
+    if p1 is None or p2 is None or tech is None:
+        return
+    if await db.scalar(select(Lesion.id).where(Lesion.patient_id.in_([p1.id, p2.id])).limit(1)) is not None:
+        return
+
+    await _demo_lesion(db, p1, tech, "L1 - left shoulder", "posterior_torso", [365, 180, 21], seed=7)
+    await _demo_lesion(db, p2, tech, "L1 - right forearm", "upper_extremity", [14], seed=19)
+    for title, category, visible in (("Visit summary (demo)", "discharge_summary", True),
+                                     ("Blood test results (demo)", "lab_report", False)):
+        pdf = synthetic.simple_pdf(title, ["MelanoTrack demo document.", "Synthetic content, not a real patient.",
+                                           f"Patient record: {p1.mrn}"])
+        stored, _ = await files_svc.store(db, hospital_id=hospital.id, data=pdf, mime=imaging.PDF,
+                                          filename=f"{category}.pdf", uploaded_by=tech.id)
+        db.add(Document(patient_id=p1.id, hospital_id=hospital.id, file_id=stored.id, category=category, title=title,
+                        document_date=date.today() - timedelta(days=21), visible_to_patient=visible,
+                        uploaded_by=tech.id))
+    log.info("Added synthetic demo lesions (3 visits and 1 visit) and 2 documents to %s", DEMO_HOSPITAL_CODE)
+
+
 async def run() -> None:
     async with SessionLocal() as db:
         await seed_super_admin(db)
         await seed_mock_model(db)
         if settings.seed_demo:
             await seed_demo(db)
+            await db.flush()
+            await seed_demo_records(db)
         await db.commit()
 
 

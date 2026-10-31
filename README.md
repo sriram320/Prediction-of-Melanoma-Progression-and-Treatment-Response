@@ -43,12 +43,26 @@ Prerequisites: PostgreSQL (tested with 18) running on `localhost:5432`, Python 3
 | Patient (`/patient/login`) | `patient@demo.example` or `+919800000001` | `SEED_DEMO_PASSWORD` |
 | Patient activation (`/patient/activate`) | invite `DEMO-INVITE-2026`, date of birth `1988-11-02` | you choose |
 
+The demo seed also gives `patient@demo.example` a lesion with three visits of **synthetic** scans (no real patient
+data) and two documents, one of them shared with the patient. To try uploading, generate sample scans with
+`backend\.venv\Scripts\python -m app.scripts.synthetic sample_scans` (run from `backend`).
+
+### Running an AI analysis
+
+Open a lesion that has scans (as a doctor or technician) and choose **Run analysis**. The API runs the job queue
+itself, so the ml-service (step 4) must be running; if it is not, the result is a referral with "The model could not
+produce a result", never a silent default. Doctors and hospital admins see the result and explanation maps; technicians
+see progress only. The model is a **mock** until the team's trained model is plugged in (see
+`.agents/skills/melanotrack-platform/references/model_integration.md`).
+
 ### Tests
 
 ```powershell
 cd backend; .venv\Scripts\python -m pytest -q
+cd ..\ml_service; ..\backend\.venv\Scripts\python -m pytest -q tests
 ```
-The suite creates and drops its own `melanotrack_test` database.
+The suite uses the database server from `.env`, but creates and drops its own `melanotrack_test` database and stores
+files in a temporary folder, so your development data is never touched.
 
 ## Deploy with Docker
 

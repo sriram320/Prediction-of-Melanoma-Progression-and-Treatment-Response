@@ -1,10 +1,16 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import RequireAuth from "./auth/RequireAuth.jsx";
 import { ComingSoon, PageHeader } from "./components/ui.jsx";
 import PortalLayout from "./layouts/PortalLayout.jsx";
+import JobsPage from "./pages/clinical/JobsPage.jsx";
+import LesionTimeline from "./pages/clinical/LesionTimeline.jsx";
+import PatientDetail from "./pages/clinical/PatientDetail.jsx";
+import PatientsList from "./pages/clinical/PatientsList.jsx";
 import Worklist from "./pages/doctor/Worklist.jsx";
 import Dashboard from "./pages/hospital-admin/Dashboard.jsx";
 import Staff from "./pages/hospital-admin/Staff.jsx";
+import MyDocuments from "./pages/patient/MyDocuments.jsx";
+import MyScans from "./pages/patient/MyScans.jsx";
 import PatientOverview from "./pages/patient/Overview.jsx";
 import AdminLogin from "./pages/public/AdminLogin.jsx";
 import ForcedPasswordChange from "./pages/public/ForcedPasswordChange.jsx";
@@ -16,7 +22,6 @@ import PatientLogin from "./pages/public/PatientLogin.jsx";
 import AccountPage from "./pages/shared/AccountPage.jsx";
 import HospitalDetail from "./pages/super-admin/HospitalDetail.jsx";
 import Hospitals from "./pages/super-admin/Hospitals.jsx";
-import TechnicianHome from "./pages/technician/Home.jsx";
 
 /** Placeholder page for a nav item scheduled in a later phase. */
 function Planned({ title, phase, items, icon }) {
@@ -35,6 +40,13 @@ function portal(roles) {
     </RequireAuth>
   );
 }
+
+// Patient records are shared by the three staff portals; each mounts them under its own path.
+const recordRoutes = [
+  <Route key="patients" path="patients" element={<PatientsList />} />,
+  <Route key="patient" path="patients/:patientId" element={<PatientDetail />} />,
+  <Route key="lesion" path="lesions/:lesionId" element={<LesionTimeline />} />,
+];
 
 export default function App() {
   return (
@@ -60,8 +72,7 @@ export default function App() {
       <Route path="/hospital" element={portal(["hospital_admin"])}>
         <Route index element={<Dashboard />} />
         <Route path="staff" element={<Staff />} />
-        <Route path="patients" element={<Planned title="Patients" phase="P2" icon="patients"
-          items={["Patient register and search", "Lesions, visits and uploads"]} />} />
+        {recordRoutes}
         <Route path="fairness" element={<Planned title="Fairness report" phase="P5" icon="scale"
           items={["Referral and override rates by Fitzpatrick type, body site, device and illumination", "Sensitivity and specificity where histopathology is known"]} />} />
         <Route path="audit" element={<Planned title="Audit log" phase="P5" icon="audit"
@@ -71,26 +82,23 @@ export default function App() {
 
       <Route path="/doctor" element={portal(["doctor"])}>
         <Route index element={<Worklist />} />
-        <Route path="patients" element={<Planned title="Patients" phase="P2" icon="patients"
-          items={["Patient register, lesion timelines and documents"]} />} />
+        {recordRoutes}
         <Route path="reports" element={<Planned title="Reports" phase="P4" icon="report"
           items={["Draft, sign, release and amend reports", "Patient and clinician PDF versions"]} />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
 
       <Route path="/technician" element={portal(["technician"])}>
-        <Route index element={<TechnicianHome />} />
-        <Route path="uploads" element={<Planned title="Uploads & jobs" phase="P3" icon="upload"
-          items={["Start an analysis for a lesion", "Follow analysis jobs until they finish"]} />} />
+        <Route index element={<Navigate to="patients" replace />} />
+        {recordRoutes}
+        <Route path="jobs" element={<JobsPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
 
       <Route path="/patient" element={portal(["patient"])}>
         <Route index element={<PatientOverview />} />
-        <Route path="lesions" element={<Planned title="My scans" phase="P2" icon="lesion"
-          items={["Your scan history for each tracked spot"]} />} />
-        <Route path="documents" element={<Planned title="Documents" phase="P2" icon="document"
-          items={["Documents your hospital has shared with you"]} />} />
+        <Route path="lesions" element={<MyScans />} />
+        <Route path="documents" element={<MyDocuments />} />
         <Route path="reports" element={<Planned title="Reports" phase="P4" icon="report"
           items={["Reports your doctor has signed and released"]} />} />
         <Route path="account" element={<AccountPage />} />

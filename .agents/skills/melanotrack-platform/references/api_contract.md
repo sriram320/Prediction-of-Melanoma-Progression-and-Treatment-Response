@@ -121,12 +121,58 @@ Legend: SA super_admin · HA hospital_admin · DR doctor · TE technician · PT 
 | `GET /models` / `POST /models` / `POST /models/{id}/activate` | SA | |
 | `GET /health` | public | `{status, db:"ok", ml_service:"ok"\|"unavailable", model:{name,version,is_mock}}`; if no active model can be read, `is_mock:true` (fail-safe: watermark stays on) |
 
+### Implemented behaviour (P2)
+- **Patients use `/me/*` only.** `GET /patients/{id}`, `/patients/{id}/lesions|documents` and
+  `/lesions/{id}/timeline` are staff-only (HA DR TE); the patient portal reads `/me/overview|lesions|documents`.
+- `POST /patients` body adds structured `medical_history: {prior_melanoma?, family_history_melanoma?, many_naevi?,
+  immunosuppressed?, notes?}` (unknown keys rejected). `consent_at` is set when consent becomes true.
+  `PatientOut` adds `has_account`, `pending_invite{expires_at}`, `lesion_count`, `document_count`.
+- `POST /patients/{id}/invite` retires earlier unused codes (only the newest works); 409 `ALREADY_ACTIVATED`.
+- `anatomical_site` is a fixed vocabulary (ISIC groups): `head_neck, anterior_torso, posterior_torso, lateral_torso,
+  upper_extremity, lower_extremity, palms_soles, oral_genital, unknown`. Lesion labels are unique per patient.
+- Visits: one per lesion per date (409 `VISIT_DATE_TAKEN`); not in the future (+1 day slack) or before DOB.
+  `PATCH /visits/{id}` (DR) needs `{excluded, reason}`; the reason goes to the audit log.
+- `GET /lesions/{id}/timeline` → `{lesion, patient{pseudonym_id,...}, visits[{images[]}], analysable_visit_count,
+  treatment_events, latest_prediction}`; `latest_prediction` key is **absent** for technicians.
+- `POST /visits/{id}/images` (≤10 files, ≤50 MB each) → `200 [{filename, image_id, file_id, duplicate,
+  duplicate_visit_date, quality_score, quality_flags, error}]`. Bad files get `error`; the rest are stored.
+  An identical image already in the hospital is not added again (`duplicate: true`).
+  Type is detected from magic bytes. JPEG/PNG are re-encoded without EXIF/GPS/comments/XMP (ICC kept);
+  TIFF → PNG; DICOM → PNG with the original kept as `images.source_file_id` (staff-only) and
+  `ManufacturerModelName` copied to an empty `visits.device_model`.
+- Quality flags (heuristic pre-check): `blur, glare, too_dark, overexposed, low_resolution`; visit score = min of
+  its images.
+- Documents: PDF/JPEG/PNG/TIFF. Technicians cannot set `visible_to_patient` (403). Same file twice for one patient →
+  409 `DUPLICATE_DOCUMENT`.
+- Files: `GET /files/{id}/content?download=` and `/thumbnail?size=128|256|512` (JPEG). Access comes from what the
+  file is attached to (scan image → staff / owning patient; document → staff / patient if shared). Anything else
+  → 404 until its phase adds a rule. Every read (thumbnails too) writes `file.read` with `details.variant`.
+  Headers: `Cache-Control: private, no-store`, `nosniff`, `CSP: sandbox`.
+- New error codes: `MRN_TAKEN` 409, `LABEL_TAKEN` 409, `VISIT_DATE_TAKEN` 409, `TOO_MANY_FILES` 422,
+  `INVALID_FILE` 422, `DUPLICATE_DOCUMENT` 409, `NO_THUMBNAIL` 415, `FILE_UNAVAILABLE` 500 (missing/tampered).
+
+### Implemented behaviour (P3)
+- `POST /lesions/{id}/analyze` (DR TE) → 202 `{job_id, status}`. 409 `CONSENT_REQUIRED` (no recorded consent),
+  409 `NO_SCANS`, 422 `VISIT_NOT_ANALYSABLE` (given visit excluded or without scans), 409 `JOB_IN_PROGRESS`,
+  503 `NO_ACTIVE_MODEL`. Uses non-excluded visits with scans up to the trigger visit (default: latest).
+- `GET /jobs?lesion_id=&status=&page=` (HA DR TE) lists jobs with patient, lesion and visit date.
+  `GET /jobs/{id}`: technicians get progress only; HA/DR also get `prediction_id` and `error`.
+- A model failure does **not** fail the job: the job `succeeded` with a `model_error` referral stored and `error`
+  set. `failed` means no prediction at all (scan unreadable, retries exhausted).
+- `GET /predictions/{id}` → adds `visit_date`, `visit_features[{visit_id, visit_date, features, melanoma_probability}]`,
+  `model_error`, `reviewed`. `GET /predictions/{id}/explanation` adds `saliency_passed_check`.
+- Timeline: `latest_job{id,status,...}` for all staff; `latest_prediction` (full PredictionOut) for HA/DR only.
+- Files: masks and explanation maps are readable by HA/DR only (technicians and patients get 404).
+- Predictions are append-only history; stats count only each lesion's newest prediction.
+- `GET /health` adds `ml_model{name,version,is_mock}` and `model_match`.
+
 ## 4. Audit actions (use these exact strings)
 `auth.login`, `auth.login_failed`, `auth.logout`, `user.create`, `user.update`, `patient.create`,
 `patient.update`, `patient.invite`, `patient.activate`, `file.upload`, `file.read`, `visit.create`,
 `visit.exclude`, `mask.update`, `job.create`, `prediction.create`, `prediction.review`,
 `report.create`, `report.sign`, `report.release`, `report.amend`, `report.download`,
-`document.visibility`, `model.activate`, `hospital.create`, `hospital.update` (last two added in P1).
+`document.visibility`, `model.activate`, `hospital.create`, `hospital.update` (P1), `lesion.create` (P2).
+Patient changes log field names only, never values.
 `app/services/audit.py` rejects any action not in this list.
 
 ## 5. Notes
