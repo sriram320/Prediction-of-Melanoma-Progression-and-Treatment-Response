@@ -200,9 +200,16 @@ CREATE TABLE treatment_events (
   treatment_date    date NOT NULL,
   response_category response_category NOT NULL DEFAULT 'pending',
   notes             text,
+  -- P5 (migration 0004): ground truth for the fairness report; only on excision / shave_biopsy / punch_biopsy
+  histopathology    varchar(20) CHECK (histopathology IN ('melanoma','not_melanoma')),  -- NULL = no result yet
+  histopathology_recorded_by uuid REFERENCES users(id),
+  histopathology_recorded_at timestamptz,
   created_by        uuid REFERENCES users(id),
   created_at        timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX ix_treatment_histopathology ON treatment_events(lesion_id, treatment_date DESC)
+  WHERE histopathology IS NOT NULL;
+-- P5 audit search indexes: ix_audit_time (occurred_at DESC), ix_audit_user_time (user_id, occurred_at DESC).
 
 -- ---------- AI ----------
 CREATE TABLE model_versions (

@@ -42,7 +42,7 @@
 | Database | **PostgreSQL 16** | Required; also hosts the job queue (no Redis needed) |
 | File storage | **Encrypted local disk** (Docker volume `storage/`), AES-256-GCM per file | Your choice; metadata lives in PostgreSQL |
 | AI inference | Separate **`ml-service`** container (FastAPI + PyTorch), plug-in `ModelAdapter` | Keeps GPU/torch dependencies out of the API; swap mock for real model |
-| Reports | Jinja2 HTML → PDF with **WeasyPrint** | Clean, branded PDFs |
+| Reports | PDF drawn with **fpdf2** (pure Python) + a Unicode TrueType font | Same output on Windows and Docker; WeasyPrint was dropped because it needs GTK, which Windows lacks |
 | Auth | Argon2id password hashing, JWT access token (15 min) + rotating refresh token (httpOnly cookie) | Standard and secure |
 | Reverse proxy | **Caddy** (automatic HTTPS) | TLS in transit (NFR-06) |
 | Runtime | **Docker Compose** | Same setup on Windows dev and the Linux server |
@@ -251,9 +251,29 @@ sequenceDiagram
 ```
 
 ### 8.2 Report lifecycle
-`draft` → `pending_review` → `signed` (doctor) → `released` (visible to the patient) → `amended` (a new version supersedes the old one; the old version is kept).
+`draft` → `signed` (doctor; PDFs rendered, locked) → `released` (visible to the patient) → `amended` (a new version, numbered `-V2`, `-V3`…, supersedes the old one once it is released; the old version is kept). `pending_review` is reserved and unused in v1.
 
-**PDF contents:** hospital header, patient name and MRN, report number, lesion and body site, visit timeline thumbnails, the risk category **or** "Referred for dermatologist review", a plain-language change summary, the difference map, the doctor's notes, a digital sign-off (name, timestamp), model version, and the disclaimer *"AI decision support — final assessment by the signing clinician."* The raw risk number appears only in the clinician version, not the patient version.
+A report on an AI result can only be signed after the doctor has confirmed or overridden that result, and its category is the reviewed one. Overriding the AI category, or reviewing a referred case, needs a written reason (audited).
+
+**PDF contents:** hospital header, patient name and MRN, report number, lesion and body site, visit timeline thumbnails, the risk category **or** "Referred for dermatologist review", a plain-language change summary, the difference map, the doctor's notes, a digital sign-off (name, timestamp), model version, and the disclaimer *"AI decision support — final assessment by the signing clinician."* The raw risk number appears only in the clinician version, not the patient version. As built: the patient copy shows the doctor's category in plain words, the summary, recommendation, visit photos and sign-off; the clinician copy adds the AI result (score, uncertainty, reasons), the review, the AI change summary, the difference map, the doctor's notes and the model version. A test checks that none of the AI details appear in the patient copy. Times are printed in `DISPLAY_TIMEZONE` (default Asia/Kolkata).
+
+### 8.3 Monitoring: fairness report and audit log (S1, S3)
+- **Ground truth.** A doctor records the histopathology result (melanoma / not melanoma) on a biopsy or excision in
+  the lesion's Treatments card, at the time or later when the lab report arrives. It is never sent to the model.
+- **Fairness report** (super admin across hospitals, hospital admin and doctors for their hospital). Each lesion counts
+  once, with its newest scored or referred result in the chosen period. Grouped by Fitzpatrick skin type, body site,
+  device and illumination: referral rate, rate of doctors changing the AI category, mean risk score and the AI category
+  mix. Where histopathology is known: sensitivity and specificity of the AI and after doctor review (flagged = anything
+  other than routine monitoring), and a calibration table. Groups under 10 lesions are marked as too small to compare.
+  Each subgroup's bar carries a tick at the all-results rate. CSV export. No names or record numbers.
+- **Dashboard** (hospital admin): current AI results by category, monthly visits / analyses / reviews / released
+  reports (12 months, with a table view), median time to first review and override rate (90 days).
+- **Risk trend** (doctor / admin, lesion page): the risk score of each analysed visit over time on the category bands,
+  referrals marked, plus small charts of each measurement over the visits.
+- **Audit log viewer** (super admin all hospitals; hospital admin their own): filter by action or group, person,
+  dates and subject id; each entry expands to its details and hashes. The super admin view hides free-text reasons
+  and patient names. **Verify hash chain** recomputes every hash and checks every link; the newest hash is shown so it
+  can be kept outside the server. Each AI result also shows its own history (job, result, reviews, reports).
 
 ---
 
@@ -273,7 +293,7 @@ The full request/response spec is in [api_contract.md](file:///d:/MAJOR__PROJECT
 | Treatment | `GET/POST /lesions/{id}/treatment-events` |
 | Reports | `POST /reports`, `PATCH /reports/{id}`, `POST /reports/{id}/sign`, `POST /reports/{id}/release`, `GET /reports/{id}/pdf` |
 | Patient portal | `GET /me/overview`, `GET /me/lesions`, `GET /me/documents`, `GET /me/reports` |
-| Monitoring | `GET /reports/subgroup-performance`, `GET /audit`, `GET /audit/{predictionId}`, `GET /models`, `POST /models/{id}/activate`, `GET /health` |
+| Monitoring | `GET /reports/subgroup-performance`, `GET /hospital/activity`, `GET /lesions/{id}/predictions`, `GET /audit`, `GET /audit/{predictionId}`, `POST /audit/verify`, `GET /models`, `POST /models/{id}/activate`, `GET /health` |
 
 ---
 
@@ -321,7 +341,6 @@ MAJOR__PROJECT_WEB_DEV/
 │   │   ├── api/v1/      # routers per group
 │   │   ├── services/    # business logic (storage, reports, inference, audit)
 │   │   ├── workers/     # inference_worker.py
-│   │   └── templates/   # report HTML (Jinja2)
 │   ├── alembic/
 │   ├── tests/
 │   └── Dockerfile
@@ -346,8 +365,9 @@ the browser sees a single origin. Docker Compose (with PostgreSQL 16) remains th
 
 ## 13. Phased roadmap
 
-Status as of 2026-10-31: **P0-P3 are done** (verified with a native local run against PostgreSQL 18, 50 backend and
-10 ml-service tests; `docker compose up` has not been run yet). P4 (doctor review and PDF reports) is next.
+Status as of 2026-10-31: **P0-P5 are done** (verified with a native local run against PostgreSQL 18, 64 backend and
+10 ml-service tests; `docker compose up` has not been run yet). P6 (real model) waits for the team's trained model;
+P7 (hardening) can start before that.
 
 | Phase | Deliverable | Done when |
 |---|---|---|
@@ -355,8 +375,8 @@ Status as of 2026-10-31: **P0-P3 are done** (verified with a native local run ag
 | **P1 Auth & tenancy** ✅ | Hospitals, users, two login portals, refresh tokens, RBAC, audit log with hash chain, seed super admin | Each role can log in and only sees its own portal; audit rows are written |
 | **P2 Records & files** ✅ | Patients + identity, invites/activation, lesions, visits, encrypted upload/download, documents, image viewer | Technician uploads a 3-visit lesion; patient logs in and sees their images and visible documents |
 | **P3 Inference (mock)** ✅ | Job queue, worker, ml-service with `MockAdapter`, predictions/explanations, safety wrapper | Analyze returns a result in under 60 s; a forced error produces a referral flag |
-| **P4 Review & reports** | Doctor worklist, analysis view, override, mask correction, PDF reports, sign/release, patient report view | Released PDF is downloadable by the patient; drafts are invisible to the patient |
-| **P5 Dashboards** | Risk trend charts, hospital stats, fairness report (S1), audit viewer | Subgroup table renders from prediction and review data |
+| **P4 Review & reports** ✅ | Doctor worklist, analysis view, override, mask correction, PDF reports, sign/release, patient report view | Released PDF is downloadable by the patient; drafts are invisible to the patient |
+| **P5 Dashboards** ✅ | Risk trend charts, hospital stats, fairness report (S1), audit viewer | Subgroup table renders from prediction and review data |
 | **P6 Real model** | Teammates' model behind the adapter, test vectors pass, model version registry | `MODEL_ADAPTER=<real>` passes the regression tests; watermark removed |
 | **P7 Hardening** | RLS, rate limits, backups, test coverage, optional FHIR export / DICOM import | Security checklist (§11) fully ticked |
 

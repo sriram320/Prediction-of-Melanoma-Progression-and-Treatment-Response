@@ -16,7 +16,8 @@ ACTIONS = {
     "visit.exclude", "mask.update", "job.create", "prediction.create", "prediction.review", "report.create",
     "report.sign", "report.release", "report.amend", "report.download", "document.visibility", "model.activate",
     # additions (documented in api_contract.md)
-    "hospital.create", "hospital.update", "lesion.create",
+    "hospital.create", "hospital.update", "lesion.create", "treatment.create", "treatment.update",
+    "audit.verify",
 }
 
 

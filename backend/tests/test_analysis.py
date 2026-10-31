@@ -1,72 +1,16 @@
 """P3: analysis jobs, the worker, the mock model and the safety wrapper (invariants 1-3, 7, 8)."""
 import asyncio
-import importlib
-import importlib.util
 import json
-import sys
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
 import pytest
 
-from tests.conftest import API, BACKEND_DIR, auth, second_hospital, staff_login
-from tests.helpers import db_conn, new_lesion, new_patient, new_visit, unique_scan, upload
-
-ML_APP_DIR = BACKEND_DIR.parent / "ml_service" / "app"
-
-
-def _load_ml_service():
-    """Imports ml_service/app as package `mlsvc` (both services name their package `app`)."""
-    if "mlsvc.main" not in sys.modules:
-        spec = importlib.util.spec_from_file_location("mlsvc", ML_APP_DIR / "__init__.py",
-                                                      submodule_search_locations=[str(ML_APP_DIR)])
-        pkg = importlib.util.module_from_spec(spec)
-        sys.modules["mlsvc"] = pkg
-        spec.loader.exec_module(pkg)
-    return importlib.import_module("mlsvc.main"), importlib.import_module("mlsvc.adapters")
-
-
-@pytest.fixture
-def ml(monkeypatch):
-    from app.services import ml_client
-
-    main, adapters = _load_ml_service()
-    monkeypatch.delenv("MOCK_FORCE_ERROR", raising=False)
-    monkeypatch.setattr(ml_client, "transport", httpx.ASGITransport(app=main.app))
-    return SimpleNamespace(client=ml_client, adapter=adapters.get_adapter())
-
-
-def run_worker() -> int:
-    from app.workers.inference_worker import process_once
-
-    async def drain() -> int:
-        n = 0
-        while await process_once():
-            n += 1
-        return n
-
-    return asyncio.run(drain())
-
-
-def lesion_with_visits(client, token, n_visits: int, **patient):
-    p = new_patient(client, token, **patient)
-    lesion = new_lesion(client, token, p["id"])
-    visits = []
-    for i in range(n_visits):
-        visit = new_visit(client, token, lesion["id"], f"2025-{2 + 4 * i:02d}-10")
-        assert upload(client, token, visit["id"], [(f"v{i}.jpg", unique_scan(i))]).json()[0]["image_id"]
-        visits.append(visit)
-    return p, lesion, visits
-
-
-def analyse(client, token, lesion_id, **body):
-    r = client.post(f"{API}/lesions/{lesion_id}/analyze", headers=auth(token), json=body or None)
-    assert r.status_code == 202, r.text
-    return r.json()["job_id"]
-
+from tests.conftest import API, BACKEND_DIR, ML_APP_DIR, auth, second_hospital, staff_login
+from tests.helpers import (analyse, db_conn, lesion_with_visits, new_lesion, new_patient, new_visit, run_worker,
+                           unique_scan, upload)
 
 def test_contract_copies_are_identical():
     backend = (BACKEND_DIR / "app" / "schemas" / "inference.py").read_text(encoding="utf-8")

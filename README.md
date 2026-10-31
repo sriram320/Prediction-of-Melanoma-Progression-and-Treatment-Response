@@ -55,6 +55,26 @@ produce a result", never a silent default. Doctors and hospital admins see the r
 see progress only. The model is a **mock** until the team's trained model is plugged in (see
 `.agents/skills/melanotrack-platform/references/model_integration.md`).
 
+### Reviewing a result and issuing a report
+
+1. As the doctor, open **Worklist** and pick a result (referred cases come first).
+2. On the lesion page, check the analysis panel and outlines, then **confirm or override** the AI category in
+   *Doctor review* (a reason is required when you override, or when the model referred the case).
+3. **Create report**, edit the plain-language summary and recommendation, then **Sign**. Signing creates the patient
+   and clinician PDFs and locks the report.
+4. **Release to patient** (doctor or hospital admin). Only now does the patient see it under **Reports**.
+   Corrections are made with **Amend**, which creates a new version that replaces the old one once released.
+
+### Dashboards, fairness report and audit log
+
+- **Hospital admin → Dashboard**: current AI results, monthly activity and review turnaround.
+- **Fairness report** (hospital admin, doctor, platform admin): rates by skin type, body site, device and lighting.
+  Sensitivity, specificity and calibration appear once doctors record **histopathology results** on biopsies or
+  excisions (lesion page → Treatments).
+- **Audit log** (hospital admin for their hospital, platform admin for all): searchable; the platform admin can
+  **Verify hash chain**.
+- The lesion page shows the **risk trend** and each measurement over the visits (doctors and admins).
+
 ### Tests
 
 ```powershell

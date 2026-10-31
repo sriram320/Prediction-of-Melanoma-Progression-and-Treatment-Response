@@ -12,5 +12,9 @@ export default defineConfig({
       "/api": { target: "http://localhost:8000", changeOrigin: false },
     },
   },
-  build: { sourcemap: false },
+  build: {
+    sourcemap: false,
+    // Charts (Recharts + d3 pieces) change rarely; a separate chunk keeps them cached across app releases.
+    rollupOptions: { output: { manualChunks: { charts: ["recharts"], react: ["react", "react-dom", "react-router-dom"] } } },
+  },
 });

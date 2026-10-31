@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../../api/client.js";
+import { ROLE_LABELS } from "../../auth/roles.js";
+import { dateToTime, MiniLine, RiskTrendChart } from "../../components/charts.jsx";
 import Icon from "../../components/Icon.jsx";
 import ImageViewer from "../../components/ImageViewer.jsx";
 import SecureImage from "../../components/SecureImage.jsx";
@@ -8,7 +10,11 @@ import { Alert } from "../../components/ui.jsx";
 import {
   featureLabel, formatFeature, REASON_CODES, RISK_CATEGORIES, RISK_THRESHOLDS,
 } from "../../utils/clinical.js";
+import { actionLabel } from "../../utils/audit.js";
 import { formatDate, formatDateTime } from "../../utils/format.js";
+import ReviewBox from "./ReviewBox.jsx";
+
+const roleLabel = (r) => ROLE_LABELS[r] || r;
 
 /** Risk score on a 0-1 track, with the category thresholds marked. Value and category are also given as text. */
 function RiskMeter({ score, tone }) {
@@ -105,7 +111,71 @@ function Measurements({ features, attention }) {
   );
 }
 
-export default function AnalysisPanel({ prediction: p }) {
+/** Risk score per analysed visit, plus each measurement over the visits as small multiples (one axis each). */
+function Trends({ prediction: p, lesionId }) {
+  const { data: history } = useQuery({
+    queryKey: ["lesion", lesionId, "timeline", "predictions", p.id],
+    queryFn: () => get(`/lesions/${lesionId}/predictions`),
+  });
+  const keys = [...new Set(p.visit_features.flatMap((f) => Object.keys(f.features)))];
+  const series = keys.map((k) => ({
+    key: k,
+    data: p.visit_features.filter((f) => f.features[k] != null)
+      .map((f) => ({ x: dateToTime(f.visit_date), value: f.features[k] })),
+  })).filter((s) => s.data.length >= 2);
+  const scored = (history || []).filter((h) => !h.is_baseline && !h.referral_flag).length;
+  if (!series.length && !history?.some((h) => !h.is_baseline)) return null;
+  return (
+    <div className="stack stack--sm">
+      <h3 className="analysis-panel__h">Trend</h3>
+      {history && <RiskTrendChart history={history} id="risk-trend-chart" />}
+      {history && scored === 1 && (
+        <p className="faint" style={{ fontSize: "0.82rem" }}>One scored result so far. The trend fills in as later visits are analysed.</p>
+      )}
+      {series.length > 0 && (
+        <div className="mini-grid" aria-label="Measurements over the visits">
+          {series.map((s) => (
+            <figure key={s.key} className="mini-chart">
+              <figcaption className="mini-chart__title">{featureLabel(s.key)}</figcaption>
+              <MiniLine data={s.data} label={featureLabel(s.key)} format={(v) => formatFeature(s.key, v)}
+                id={`trend-${s.key}`} />
+            </figure>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Everything recorded about this result, loaded when opened. */
+function AuditTrail({ predictionId }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["audit", "prediction", predictionId],
+    queryFn: () => get(`/audit/${predictionId}`),
+    enabled: open,
+  });
+  return (
+    <details className="audit-trail" onToggle={(e) => setOpen(e.currentTarget.open)} id="analysis-audit-trail">
+      <summary>History of this result</summary>
+      {isLoading && <p className="faint">Loading…</p>}
+      {isError && <p className="faint">The history could not be loaded.</p>}
+      {data && (
+        <ol className="audit-trail__list">
+          {data.map((e) => (
+            <li key={e.id}>
+              <span className="faint">{formatDateTime(e.occurred_at)}</span>
+              <span>{actionLabel(e.action)}</span>
+              <span className="muted">{e.actor_name || (e.role ? roleLabel(e.role) : "System")}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </details>
+  );
+}
+
+export default function AnalysisPanel({ prediction: p, lesionId, onReviewed }) {
   const [viewing, setViewing] = useState(false);
   const { data: exp } = useQuery({
     queryKey: ["prediction", p.id, "explanation"],
@@ -144,6 +214,8 @@ export default function AnalysisPanel({ prediction: p }) {
           </div>
         )}
 
+        <Trends prediction={p} lesionId={lesionId} />
+
         {p.visit_features.length > 0 && (
           <div>
             <h3 className="analysis-panel__h">Measurements per visit</h3>
@@ -168,8 +240,10 @@ export default function AnalysisPanel({ prediction: p }) {
           </div>
         )}
 
+        <ReviewBox key={p.id} prediction={p} lesionId={lesionId} onReviewed={onReviewed} />
+        <AuditTrail key={`trail-${p.id}-${p.latest_review?.id || ""}`} predictionId={p.id} />
         <p className="faint" style={{ fontSize: "0.82rem" }}>
-          AI decision support only. Confirming or overriding this result and signing a report come in the next phase (P4).
+          AI decision support only. The final assessment is made by the reviewing and signing doctor.
         </p>
       </div>
 

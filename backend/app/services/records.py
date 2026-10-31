@@ -86,12 +86,18 @@ async def create_lesion(db: AsyncSession, scope: Scope, patient_id: uuid.UUID, d
     return (await _lesion_summaries(db, [lesion]))[0]
 
 
-def _visit_out(visit: Visit, images: list[Image]) -> VisitOut:
+def image_out(img: Image, show_ai: bool) -> ImageOut:
+    if not show_ai:
+        return ImageOut.model_validate(img).model_copy(update={"mask_file_id": None, "mask_confidence": None})
+    return ImageOut.model_validate(img).model_copy(update={"mask_confirmed": img.mask_confirmed_by is not None})
+
+
+def _visit_out(visit: Visit, images: list[Image], show_ai: bool = False) -> VisitOut:
     return VisitOut(
         id=visit.id, visit_date=visit.visit_date, device_model=visit.device_model, illumination=visit.illumination,
         polarised=visit.polarised, quality_score=visit.quality_score, quality_flags=visit.quality_flags or [],
         excluded=visit.excluded, notes=visit.notes, created_at=visit.created_at,
-        images=[ImageOut.model_validate(i) for i in images])
+        images=[image_out(i, show_ai) for i in images])
 
 
 async def timeline(db: AsyncSession, scope: Scope, lesion_id: uuid.UUID) -> TimelineOut:
@@ -112,11 +118,11 @@ async def timeline(db: AsyncSession, scope: Scope, lesion_id: uuid.UUID) -> Time
         patient=PatientBrief(id=patient.id, mrn=patient.mrn, pseudonym_id=patient.pseudonym_id,
                              full_name=ident.full_name, sex=patient.sex, age_band=age_band(ident.date_of_birth),
                              fitzpatrick_type=patient.fitzpatrick_type),
-        visits=[_visit_out(v, by_visit[v.id]) for v in visits],
+        visits=[_visit_out(v, by_visit[v.id], scope.role in predictions_svc.AI_RESULT_ROLES) for v in visits],
         analysable_visit_count=sum(1 for v in visits if not v.excluded and by_visit[v.id]),
         treatment_events=[{"id": str(t.id), "treatment_type": t.treatment_type,
                            "treatment_date": t.treatment_date.isoformat(), "response_category": t.response_category,
-                           "notes": t.notes} for t in treatments],
+                           "notes": t.notes, "histopathology": t.histopathology} for t in treatments],
         latest_job=await predictions_svc.latest_job(db, lesion.id),
     )
     # Technicians never receive AI results (permission matrix); the key is left out entirely.
@@ -159,7 +165,7 @@ async def set_visit_excluded(db: AsyncSession, scope: Scope, visit_id: uuid.UUID
                           details={"excluded": data.excluded, "reason": data.reason}, request=request)
         await db.commit()
     images = (await db.scalars(select(Image).where(Image.visit_id == visit.id).order_by(Image.created_at))).all()
-    return _visit_out(visit, list(images))
+    return _visit_out(visit, list(images), show_ai=True)  # doctors only
 
 
 async def _refresh_visit_quality(db: AsyncSession, visit: Visit) -> None:

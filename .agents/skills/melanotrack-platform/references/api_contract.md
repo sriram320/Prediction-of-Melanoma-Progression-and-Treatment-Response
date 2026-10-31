@@ -116,8 +116,11 @@ Legend: SA super_admin · HA hospital_admin · DR doctor · TE technician · PT 
 
 ### Monitoring
 | `GET /reports/subgroup-performance?from&to` | SA HA DR | grouped by fitzpatrick_type, anatomical_site, device_model, illumination: n, referral_rate, override_rate, mean_risk, sensitivity/specificity (when histopathology outcome is known) |
-| `GET /audit?entity_type&entity_id&user_id&from&to` | SA, HA(own hospital) | |
+| `GET /audit?action&entity_type&entity_id&user_id&hospital_id&from&to` | SA, HA(own hospital) | see P5 below |
 | `GET /audit/{predictionId}` | SA HA DR | |
+| `POST /audit/verify` | SA | hash-chain check (P5) |
+| `GET /hospital/activity?months` | HA DR | monthly counts and current results (P5) |
+| `GET /lesions/{id}/predictions` | HA DR | prediction history for the risk trend (P5) |
 | `GET /models` / `POST /models` / `POST /models/{id}/activate` | SA | |
 | `GET /health` | public | `{status, db:"ok", ml_service:"ok"\|"unavailable", model:{name,version,is_mock}}`; if no active model can be read, `is_mock:true` (fail-safe: watermark stays on) |
 
@@ -166,12 +169,67 @@ Legend: SA super_admin · HA hospital_admin · DR doctor · TE technician · PT 
 - Predictions are append-only history; stats count only each lesion's newest prediction.
 - `GET /health` adds `ml_model{name,version,is_mock}` and `model_match`.
 
+### Implemented behaviour (P4)
+- `POST /predictions/{id}/review` (DR) body `{final_category, reason?}`: the decision is **derived**: `confirmed` when
+  final_category equals the AI category, otherwise `overridden`. A reason (>= 3 chars) is required when overridden,
+  which includes every referral and baseline (422 `REASON_REQUIRED`). Reviews are history; the newest counts.
+  `GET /predictions/{id}/reviews` (HA DR). `PredictionOut.latest_review`.
+- `GET /worklist?state=pending|reviewed` (HA DR): each lesion's newest prediction. Pending = unreviewed and (scored or
+  referred), ordered referral first, then specialist > shortened > routine, then oldest.
+- `PUT /images/{id}/mask` (DR), multipart: `confirm=true` (409 `NO_MASK` if none) or `file` = PNG outline (any size
+  with the scan's aspect ratio; resized; must not be empty or full; 422 `INVALID_FILE`). Sets `mask_confirmed_by`,
+  confidence 1.0 for drawn outlines. Timeline `ImageOut` gains `mask_file_id, mask_confidence, mask_confirmed` (HA/DR only).
+- `GET/POST /lesions/{id}/treatment-events`: list for staff, create for DR. Types: excision, shave_biopsy, punch_biopsy,
+  cryotherapy, topical_therapy, immunotherapy, targeted_therapy, radiotherapy, other.
+- Reports: `POST /reports {lesion_id, prediction_id?}` (default: the lesion's newest prediction) creates a draft prefilled
+  from the review (category, plain-language summary template, recommendation) and the AI change summary (doctor notes);
+  409 `DRAFT_EXISTS`. Numbers `MT-YYYY-NNNNNN` (sequence), amendments `-V2`…
+  `PATCH` only while draft (409 `REPORT_LOCKED`); `final_category` is not editable when linked to a prediction (422
+  `CATEGORY_FROM_REVIEW`). `/sign` (DR): 409 `REVIEW_REQUIRED`, 422 `INCOMPLETE_REPORT`. `/release` (DR HA): signed
+  only (409 `NOT_SIGNED` / `ALREADY_RELEASED`); marks the superseded version `amended`. `/amend` (DR): signed/released
+  only, one amendment (409 `AMENDMENT_EXISTS`).
+- `GET /reports?patient_id&lesion_id&status` and `GET /reports/{id}`: technicians get released reports only, without
+  doctor notes or model. `GET /reports/{id}/pdf?variant=patient|clinician&download=`: patients (own, released, patient
+  copy), technicians (released, patient copy), HA/DR (both). Audited as `report.download`.
+- `GET /me/reports` (released only; doctor's words, no AI fields); `/me/overview.latest_report`.
+- Audit action added: `treatment.create`.
+
+### Implemented behaviour (P5)
+- Treatments: `POST /lesions/{id}/treatment-events` accepts `histopathology: melanoma|not_melanoma|null`, and
+  `PATCH /treatment-events/{id} {histopathology}` (DR) records or clears it later. Only excision / shave_biopsy /
+  punch_biopsy (422 `HISTOPATHOLOGY_NOT_APPLICABLE`). Audited as `treatment.update` with field names only.
+  `TreatmentOut` and timeline `treatment_events[]` gain `histopathology` (+ `histopathology_recorded_at` in TreatmentOut).
+  The value is never sent to the ml-service.
+- `GET /lesions/{id}/predictions` (HA DR): every prediction of the lesion, oldest first, with visit date, model,
+  score/category/uncertainty/referral and the newest review (`review_decision`, `final_category`). Feeds the risk trend.
+- `GET /hospital/activity?months=1..24` (HA DR, default 12): per month (DISPLAY_TIMEZONE) `visits` (by visit_date),
+  `analyses`, `reviews`, `reports_released`; `current_results` (each lesion's newest result: the three categories,
+  `referral`, `baseline`, plus `not_analysed` active lesions); `awaiting_review`; last 90 days `scored_reviews_90d`,
+  `overrides_90d` (results with an AI category only) and `review_median_hours_90d` (result -> first review).
+- `GET /reports/subgroup-performance?from&to&hospital_id` (SA HA DR; `hospital_id` honoured for SA only, staff get their
+  own hospital; registered before `/reports/{id}`). Unit: each lesion's newest non-baseline prediction created in the
+  period. Per row: `n, small_sample (n<10), referral_n/rate, scored_n, mean_risk, routine_n/shortened_n/specialist_n,
+  reviewed_scored_n, override_n/rate, outcome_n, melanoma_n, ai{tp,fn,tn,fp,sensitivity,specificity}, after_review{…}`.
+  Outcomes: the lesion's newest histopathology result, matched to its newest prediction from a visit on or before the
+  procedure date. Flagged = anything but routine monitoring (shortened, specialist, or a referral). Dimensions
+  `fitzpatrick_type, anatomical_site, device_model, illumination` (value `null` = not recorded) plus `overall`,
+  `calibration` (5 score bins: n, mean_risk, observed_rate), `models`, `any_mock`. No patient identity in the output.
+- `GET /audit?action&user_id&entity_type&entity_id&hospital_id&from&to&page&page_size<=200` (SA all hospitals, HA own):
+  newest first; `action` may be a group (`report`); unknown -> 422. Entries add `actor_name`, `hospital_code`, hashes.
+  For SA, `details.reason` is `[redacted]` and patient actors are unnamed. `GET /audit/actions` (SA HA).
+- `GET /audit/{predictionId}` (SA HA DR): entries for the prediction, its job(s) and reports based on it.
+- `POST /audit/verify` (SA): recomputes every row hash (session time zone or UTC rendering), checks each `prev_hash`
+  points at an existing row and no two rows share a predecessor; returns `{ok, checked, hash_mismatches,
+  missing_links, forks, first_problem_id, head_id, head_hash}`. Audited as `audit.verify`. Deleting the newest rows is
+  only detectable against a head hash kept elsewhere.
+
 ## 4. Audit actions (use these exact strings)
 `auth.login`, `auth.login_failed`, `auth.logout`, `user.create`, `user.update`, `patient.create`,
 `patient.update`, `patient.invite`, `patient.activate`, `file.upload`, `file.read`, `visit.create`,
 `visit.exclude`, `mask.update`, `job.create`, `prediction.create`, `prediction.review`,
 `report.create`, `report.sign`, `report.release`, `report.amend`, `report.download`,
-`document.visibility`, `model.activate`, `hospital.create`, `hospital.update` (P1), `lesion.create` (P2).
+`document.visibility`, `model.activate`, `hospital.create`, `hospital.update` (P1), `lesion.create` (P2), `treatment.create` (P4),
+`treatment.update`, `audit.verify` (P5).
 Patient changes log field names only, never values.
 `app/services/audit.py` rejects any action not in this list.
 

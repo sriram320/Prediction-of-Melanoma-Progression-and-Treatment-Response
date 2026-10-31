@@ -87,6 +87,15 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 - **Backend tests:** `docker compose exec backend pytest -q`.
 - **Frontend dev (hot reload):** `cd frontend && npm run dev` (proxy `/api` → `http://localhost:8000`).
 - **Integrate the real model:** follow [model_integration.md §5](references/model_integration.md).
+- **PDF reports** use fpdf2 (pure Python). Font: `REPORT_FONT_PATH`, else DejaVu (Docker) or Arial (Windows), else core
+  Helvetica (Latin-1 only). Indic-script names need a font with those glyphs (e.g. Noto Sans Kannada) via `REPORT_FONT_PATH`.
+- **Charts** use Recharts via `frontend/src/components/charts.jsx` (colours read from the CSS tokens; 2px lines, r=4
+  markers with a surface ring, columns <= 24px with 4px rounded ends, one axis per chart, table view or text alongside).
+  Risk colours always come with an icon and a label.
+- **Fairness ground truth:** doctors record histopathology on excision/biopsy treatments (Treatments card on the lesion
+  page). Without it the fairness report shows rates only (no sensitivity/specificity/calibration).
+- **Audit chain check:** `POST /audit/verify` (super admin, Audit log page). Tests tamper with a row by switching off
+  `trg_audit_no_update` as the table owner and expect a mismatch.
 - **Verify the safety wrapper:** set `MOCK_FORCE_ERROR=1` on ml-service, run analyze, and expect `referral_flag=true`.
   (Automated in `backend/tests/test_analysis.py`, which mounts the real ml-service in-process.)
 - **Analysis jobs locally:** the API runs the worker itself (`EMBEDDED_WORKER=true`); start the ml-service too or every
@@ -108,8 +117,8 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 | P1 Auth & tenancy | ✅ Done 2026-10-23 (20 backend tests pass; super-admin + hospital-admin consoles; other portals are shells) |
 | P2 Records & encrypted files | ✅ Done 2026-10-24 (36 backend tests pass; staff patient register/record/lesion timeline/uploads/documents; patient My scans + Documents) |
 | P3 Inference pipeline (mock) | ✅ Done 2026-10-31 (50 backend + 10 ml-service tests; analysis runs in ~2.6 s on the demo lesion; doctor/admin analysis panel, technician jobs page) |
-| P4 Doctor review & PDF reports | ⏳ Not started |
-| P5 Dashboards, fairness, audit viewer | ⏳ Not started |
+| P4 Doctor review & PDF reports | ✅ Done 2026-10-31 (58 backend tests; worklist, review/override, outline editor, treatments, report editor, sign/release/amend, patient Reports page) |
+| P5 Dashboards, fairness, audit viewer | ✅ Done 2026-10-31 (64 backend tests; risk trend + measurement charts, hospital activity dashboard, fairness report for SA/HA/DR with CSV export, audit viewer for SA/HA with hash-chain verification, histopathology results on biopsies/excisions; migration 0004) |
 | P6 Real model integration | ⏳ Waiting for teammates' trained model |
 | P7 Hardening (RLS, backups, tests, FHIR) | ⏳ Not started |
 
@@ -118,6 +127,13 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 - P3 added `ambiguous_prediction` to the reason codes and optional per-visit outputs (`visits[].features`,
   `melanoma_probability`) to the contract. Per-visit Grad-CAM images are not in the contract yet: needed?
 - P3 requires recorded consent before an analysis can be queued. Confirm this is the hospital policy.
+- Release currently has no patient notification (no SMS/email provider). Needed? (MSG91 / Twilio / SMTP.)
+- Patient names in Kannada/Devanagari script need an Indic font for PDFs. Should we ship Noto fonts?
+- P5 fairness report: "flagged" = anything other than routine monitoring (shortened interval counts as flagged) and
+  groups under 10 lesions are marked too small. Confirm both with the team/mentor. Should histopathology also record
+  melanoma in situ / dysplastic naevus as separate classes?
+- Super admin audit view hides free-text reasons and patient names. Is that the right line for the platform owner?
+- Should the audit head hash be exported somewhere automatically (e.g. nightly with the backups, P7)?
 - Can patients see raw scan images before a report is released? (Implemented as yes, images only, excluded
   visits hidden; never quality scores, notes or AI output. Confirm.)
 - Should technicians be able to remove a wrongly uploaded image? (P2 has no delete; a doctor can exclude the visit.)

@@ -10,22 +10,25 @@ import MockBanner from "../components/MockBanner.jsx";
 const NAV = {
   super_admin: [
     { to: "/admin", label: "Hospitals", icon: "hospital", end: true },
+    { to: "/admin/fairness", label: "Fairness report", icon: "scale" },
+    { to: "/admin/audit", label: "Audit log", icon: "audit" },
     { to: "/admin/models", label: "Model versions", icon: "model", soon: "P6" },
-    { to: "/admin/audit", label: "Audit log", icon: "audit", soon: "P5" },
     { to: "/admin/account", label: "My account", icon: "user" },
   ],
   hospital_admin: [
     { to: "/hospital", label: "Dashboard", icon: "dashboard", end: true },
     { to: "/hospital/staff", label: "Staff", icon: "users" },
     { to: "/hospital/patients", label: "Patients", icon: "patients" },
-    { to: "/hospital/fairness", label: "Fairness report", icon: "scale", soon: "P5" },
-    { to: "/hospital/audit", label: "Audit log", icon: "audit", soon: "P5" },
+    { to: "/hospital/reports", label: "Reports", icon: "report" },
+    { to: "/hospital/fairness", label: "Fairness report", icon: "scale" },
+    { to: "/hospital/audit", label: "Audit log", icon: "audit" },
     { to: "/hospital/account", label: "My account", icon: "user" },
   ],
   doctor: [
     { to: "/doctor", label: "Worklist", icon: "clipboard", end: true },
     { to: "/doctor/patients", label: "Patients", icon: "patients" },
-    { to: "/doctor/reports", label: "Reports", icon: "report", soon: "P4" },
+    { to: "/doctor/reports", label: "Reports", icon: "report" },
+    { to: "/doctor/fairness", label: "Fairness report", icon: "scale" },
     { to: "/doctor/account", label: "My account", icon: "user" },
   ],
   technician: [
@@ -37,7 +40,7 @@ const NAV = {
     { to: "/patient", label: "Overview", icon: "dashboard", end: true },
     { to: "/patient/lesions", label: "My scans", icon: "lesion" },
     { to: "/patient/documents", label: "Documents", icon: "document" },
-    { to: "/patient/reports", label: "Reports", icon: "report", soon: "P4" },
+    { to: "/patient/reports", label: "Reports", icon: "report" },
     { to: "/patient/account", label: "My account", icon: "user" },
   ],
 };

@@ -144,3 +144,35 @@ def second_hospital(client, admin_token) -> tuple[str, str]:
         hid = r.json()["items"][0]["id"]
     tok = staff_login(client, "admin2@second.example", code="SECOND", password="SecondAdmin123")
     return hid, tok
+
+
+ML_APP_DIR = BACKEND_DIR.parent / "ml_service" / "app"
+
+
+def _load_ml_service():
+    """Imports ml_service/app as package `mlsvc` (both services name their package `app`)."""
+    import importlib
+    import importlib.util
+    import sys
+
+    if "mlsvc.main" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("mlsvc", ML_APP_DIR / "__init__.py",
+                                                      submodule_search_locations=[str(ML_APP_DIR)])
+        pkg = importlib.util.module_from_spec(spec)
+        sys.modules["mlsvc"] = pkg
+        spec.loader.exec_module(pkg)
+    return importlib.import_module("mlsvc.main"), importlib.import_module("mlsvc.adapters")
+
+
+@pytest.fixture
+def ml(monkeypatch):
+    """Routes the backend's ml-service calls to the real ml-service app, in process."""
+    from types import SimpleNamespace
+
+    import httpx
+    from app.services import ml_client
+
+    main, adapters = _load_ml_service()
+    monkeypatch.delenv("MOCK_FORCE_ERROR", raising=False)
+    monkeypatch.setattr(ml_client, "transport", httpx.ASGITransport(app=main.app))
+    return SimpleNamespace(client=ml_client, adapter=adapters.get_adapter())

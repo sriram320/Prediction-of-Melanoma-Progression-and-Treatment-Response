@@ -111,3 +111,47 @@ export const JOB_STATUS = {
   failed: { label: "Failed", kind: "danger" },
   cancelled: { label: "Cancelled", kind: undefined },
 };
+
+// ---------- Reports and review ----------
+export const PATIENT_CATEGORY = {
+  routine_monitoring: { label: "No changes that need action now", tone: "routine", icon: "check" },
+  shortened_interval: { label: "An earlier follow-up visit is recommended", tone: "shortened", icon: "clock" },
+  specialist_referral: { label: "A specialist should examine this spot", tone: "referral", icon: "alert" },
+};
+
+export const REPORT_STATUS = {
+  draft: { label: "Draft", kind: undefined },
+  pending_review: { label: "Draft", kind: undefined },
+  signed: { label: "Signed, not released", kind: "accent" },
+  released: { label: "Released to patient", kind: "success" },
+  amended: { label: "Replaced by a newer version", kind: "warning" },
+};
+
+export const RECOMMENDATION_PRESETS = [
+  "Routine skin check in 12 months",
+  "Follow-up visit in 3 months",
+  "Follow-up visit in 6 months",
+  "See a dermatologist within 2 weeks",
+];
+
+export const TREATMENT_TYPES = [
+  { value: "excision", label: "Excision" },
+  { value: "shave_biopsy", label: "Shave biopsy" },
+  { value: "punch_biopsy", label: "Punch biopsy" },
+  { value: "cryotherapy", label: "Cryotherapy" },
+  { value: "topical_therapy", label: "Topical therapy" },
+  { value: "immunotherapy", label: "Immunotherapy" },
+  { value: "targeted_therapy", label: "Targeted therapy" },
+  { value: "radiotherapy", label: "Radiotherapy" },
+  { value: "other", label: "Other" },
+];
+export const treatmentLabel = (v) => TREATMENT_TYPES.find((t) => t.value === v)?.label ?? v;
+
+// Only tissue-sampling procedures carry a result (backend HISTOPATHOLOGY_TYPES).
+export const HISTOPATHOLOGY_TYPES = ["excision", "shave_biopsy", "punch_biopsy"];
+export const HISTOPATHOLOGY = [
+  { value: "", label: "Result not back yet" },
+  { value: "melanoma", label: "Melanoma" },
+  { value: "not_melanoma", label: "Not melanoma" },
+];
+export const histopathologyLabel = (v) => HISTOPATHOLOGY.find((h) => h.value === (v || ""))?.label ?? v;

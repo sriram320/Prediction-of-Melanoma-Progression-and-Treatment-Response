@@ -19,11 +19,11 @@ export function clearFileCache() {
   thumbCache.clear();
 }
 
-/** Opens a file in a new tab. The tab is opened synchronously so pop-up blockers allow it. */
-export async function openFile(fileId) {
+/** Opens a protected file in a new tab. The tab is opened synchronously so pop-up blockers allow it. */
+export async function openPath(path) {
   const tab = window.open("", "_blank");
   try {
-    const url = URL.createObjectURL(await getBlob(`/files/${fileId}/content`));
+    const url = URL.createObjectURL(await getBlob(path));
     if (tab) tab.location.href = url;
     else window.location.assign(url);
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -33,8 +33,10 @@ export async function openFile(fileId) {
   }
 }
 
-export async function downloadFile(fileId, filename) {
-  const url = URL.createObjectURL(await getBlob(`/files/${fileId}/content?download=true`));
+export const openFile = (fileId) => openPath(`/files/${fileId}/content`);
+
+export async function downloadPath(path, filename) {
+  const url = URL.createObjectURL(await getBlob(path));
   const a = document.createElement("a");
   a.href = url;
   a.download = filename || "file";
@@ -43,6 +45,8 @@ export async function downloadFile(fileId, filename) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+export const downloadFile = (fileId, filename) => downloadPath(`/files/${fileId}/content?download=true`, filename);
 
 export function formatBytes(n) {
   if (!n && n !== 0) return "–";

@@ -4,12 +4,15 @@ import { ComingSoon, PageHeader } from "./components/ui.jsx";
 import PortalLayout from "./layouts/PortalLayout.jsx";
 import JobsPage from "./pages/clinical/JobsPage.jsx";
 import LesionTimeline from "./pages/clinical/LesionTimeline.jsx";
+import ReportEditor from "./pages/clinical/ReportEditor.jsx";
+import ReportsList from "./pages/clinical/ReportsList.jsx";
 import PatientDetail from "./pages/clinical/PatientDetail.jsx";
 import PatientsList from "./pages/clinical/PatientsList.jsx";
 import Worklist from "./pages/doctor/Worklist.jsx";
 import Dashboard from "./pages/hospital-admin/Dashboard.jsx";
 import Staff from "./pages/hospital-admin/Staff.jsx";
 import MyDocuments from "./pages/patient/MyDocuments.jsx";
+import MyReports from "./pages/patient/MyReports.jsx";
 import MyScans from "./pages/patient/MyScans.jsx";
 import PatientOverview from "./pages/patient/Overview.jsx";
 import AdminLogin from "./pages/public/AdminLogin.jsx";
@@ -20,6 +23,8 @@ import NotFound from "./pages/public/NotFound.jsx";
 import PatientActivate from "./pages/public/PatientActivate.jsx";
 import PatientLogin from "./pages/public/PatientLogin.jsx";
 import AccountPage from "./pages/shared/AccountPage.jsx";
+import AuditLog from "./pages/shared/AuditLog.jsx";
+import FairnessReport from "./pages/shared/FairnessReport.jsx";
 import HospitalDetail from "./pages/super-admin/HospitalDetail.jsx";
 import Hospitals from "./pages/super-admin/Hospitals.jsx";
 
@@ -64,8 +69,8 @@ export default function App() {
         <Route path="hospitals/:hospitalId" element={<HospitalDetail />} />
         <Route path="models" element={<Planned title="Model versions" phase="P6" icon="model"
           items={["Register a trained model with its metrics and model card", "Activate a version (removes the mock watermark when the active model is not a mock)"]} />} />
-        <Route path="audit" element={<Planned title="Audit log" phase="P5" icon="audit"
-          items={["Search the append-only, hash-chained audit trail", "Verify the hash chain"]} />} />
+        <Route path="fairness" element={<FairnessReport />} />
+        <Route path="audit" element={<AuditLog />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
 
@@ -73,18 +78,19 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="staff" element={<Staff />} />
         {recordRoutes}
-        <Route path="fairness" element={<Planned title="Fairness report" phase="P5" icon="scale"
-          items={["Referral and override rates by Fitzpatrick type, body site, device and illumination", "Sensitivity and specificity where histopathology is known"]} />} />
-        <Route path="audit" element={<Planned title="Audit log" phase="P5" icon="audit"
-          items={["Every sign-in, file access, prediction, review, signature and release in your hospital"]} />} />
+        <Route path="reports" element={<ReportsList />} />
+        <Route path="reports/:reportId" element={<ReportEditor />} />
+        <Route path="fairness" element={<FairnessReport />} />
+        <Route path="audit" element={<AuditLog />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
 
       <Route path="/doctor" element={portal(["doctor"])}>
         <Route index element={<Worklist />} />
         {recordRoutes}
-        <Route path="reports" element={<Planned title="Reports" phase="P4" icon="report"
-          items={["Draft, sign, release and amend reports", "Patient and clinician PDF versions"]} />} />
+        <Route path="reports" element={<ReportsList />} />
+        <Route path="reports/:reportId" element={<ReportEditor />} />
+        <Route path="fairness" element={<FairnessReport />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
 
@@ -99,8 +105,7 @@ export default function App() {
         <Route index element={<PatientOverview />} />
         <Route path="lesions" element={<MyScans />} />
         <Route path="documents" element={<MyDocuments />} />
-        <Route path="reports" element={<Planned title="Reports" phase="P4" icon="report"
-          items={["Reports your doctor has signed and released"]} />} />
+        <Route path="reports" element={<MyReports />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
 

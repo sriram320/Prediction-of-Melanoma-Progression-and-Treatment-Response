@@ -209,8 +209,12 @@ class ImageOut(ORMModel):
     quality_score: float | None
     quality_flags: list[str]
     created_at: datetime
+    # Segmentation outline (an AI output): filled for hospital admins and doctors only
+    mask_file_id: uuid.UUID | None = None
+    mask_confidence: float | None = None
+    mask_confirmed: bool = False
 
-    _round = field_validator("quality_score")(_round_score)
+    _round = field_validator("quality_score", "mask_confidence")(_round_score)
 
 
 class VisitOut(ORMModel):

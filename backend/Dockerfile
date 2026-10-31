@@ -4,10 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# WeasyPrint (PDF reports) needs Pango/HarfBuzz + fonts
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 libharfbuzz0b \
-        fonts-dejavu-core fonts-liberation \
+# A Unicode TrueType font for PDF reports (fpdf2 embeds it)
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

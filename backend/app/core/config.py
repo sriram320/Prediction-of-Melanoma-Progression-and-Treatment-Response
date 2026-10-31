@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     job_max_attempts: int = 3
     segmentation_confidence_threshold: float = 0.6
 
+    # Reports
+    display_timezone: str = "Asia/Kolkata"  # timestamps printed on reports
+    report_font_path: str | None = None  # a Unicode .ttf; found automatically on Windows (Arial) and Docker (DejaVu)
+    report_font_bold_path: str | None = None
+
     @field_validator("jwt_secret")
     @classmethod
     def _jwt_secret_strong(cls, v: str) -> str:

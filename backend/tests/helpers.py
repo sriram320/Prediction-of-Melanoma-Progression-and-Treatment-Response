@@ -6,7 +6,7 @@ import numpy as np
 import psycopg
 
 from app.scripts.synthetic import lesion_image, simple_pdf
-from tests.conftest import API, auth
+from tests.conftest import API, auth, staff_login
 
 _counter = itertools.count(1000)  # unique synthetic seeds: identical bytes would be de-duplicated per hospital
 
@@ -68,3 +68,69 @@ def dicom_bytes(model: str = "FotoFinder Medicam 1000") -> bytes:
     buf = io.BytesIO()
     ds.save_as(buf, enforce_file_format=True)
     return buf.getvalue()
+
+
+def run_worker() -> int:
+    """Processes every queued analysis job; returns how many ran."""
+    import asyncio
+
+    from app.workers.inference_worker import process_once
+
+    async def drain() -> int:
+        n = 0
+        while await process_once():
+            n += 1
+        return n
+
+    return asyncio.run(drain())
+
+
+def lesion_with_visits(client, token, n_visits: int, **patient):
+    p = new_patient(client, token, **patient)
+    lesion = new_lesion(client, token, p["id"])
+    visits = []
+    for i in range(n_visits):
+        visit = new_visit(client, token, lesion["id"], f"2025-{2 + 4 * i:02d}-10")
+        assert upload(client, token, visit["id"], [(f"v{i}.jpg", unique_scan(i))]).json()[0]["image_id"]
+        visits.append(visit)
+    return p, lesion, visits
+
+
+def analyse(client, token, lesion_id, **body) -> str:
+    r = client.post(f"{API}/lesions/{lesion_id}/analyze", headers=auth(token), json=body or None)
+    assert r.status_code == 202, r.text
+    return r.json()["job_id"]
+
+
+FRESH_PASSWORD = "FreshPass123!"
+
+
+def _first_login(client, code: str, email: str, temp_password: str) -> str:
+    r = client.post(f"{API}/auth/hospital/login",
+                    json={"hospital_code": code, "email": email, "password": temp_password})
+    assert r.status_code == 200, r.text
+    r = client.post(f"{API}/auth/change-password", headers=auth(r.json()["access_token"]),
+                    json={"current_password": temp_password, "new_password": FRESH_PASSWORD})
+    assert r.status_code == 200, r.text
+    return staff_login(client, email, code=code, password=FRESH_PASSWORD)
+
+
+def fresh_hospital(client, admin_token) -> dict:
+    """A new, empty hospital with an admin, a doctor and a technician, for tests that count things.
+    Returns {"id", "code", "admin", "doctor", "tech"} (the last three are access tokens)."""
+    code = f"FH{next(_counter)}"
+    r = client.post(f"{API}/admin/hospitals", headers=auth(admin_token), json={"code": code, "name": f"Hospital {code}"})
+    assert r.status_code == 201, r.text
+    out = {"id": r.json()["id"], "code": code}
+    email = f"admin@{code.lower()}.example"
+    r = client.post(f"{API}/admin/hospitals/{out['id']}/admins", headers=auth(admin_token),
+                    json={"full_name": f"Admin {code}", "email": email})
+    assert r.status_code == 201, r.text
+    out["admin"] = _first_login(client, code, email, r.json()["temp_password"])
+    for role, key in (("doctor", "doctor"), ("technician", "tech")):
+        email = f"{key}@{code.lower()}.example"
+        r = client.post(f"{API}/hospital/staff", headers=auth(out["admin"]),
+                        json={"role": role, "full_name": f"{role.title()} {code}", "email": email})
+        assert r.status_code == 201, r.text
+        out[key] = _first_login(client, code, email, r.json()["temp_password"])
+    return out

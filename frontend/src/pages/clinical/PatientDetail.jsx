@@ -12,11 +12,13 @@ import { ANATOMICAL_SITES, fitzpatrickShort, MEDICAL_HISTORY, sexLabel, siteLabe
 import { errorMessage, formatDate, formatDateTime } from "../../utils/format.js";
 import DocumentsPanel from "./DocumentsPanel.jsx";
 import PatientFormModal from "./PatientFormModal.jsx";
+import { ReportsTable } from "./ReportsList.jsx";
 import { usePortalBase } from "./portal.js";
 
 const TABS = [
   { id: "lesions", label: "Lesions & scans" },
   { id: "documents", label: "Documents" },
+  { id: "reports", label: "Reports" },
   { id: "profile", label: "Profile" },
 ];
 
@@ -195,6 +197,7 @@ export default function PatientDetail() {
           ? <Alert kind="error">{errorMessage(lesionsQ.error)}</Alert>
           : <LesionsTab patientId={p.id} lesions={lesions} base={base} />)}
         {tab === "documents" && <DocumentsPanel patientId={p.id} lesions={lesions} />}
+        {tab === "reports" && <div className="card card--flush"><ReportsTable patientId={p.id} pageSize={50} /></div>}
         {tab === "profile" && <ProfileTab p={p} />}
       </section>
 

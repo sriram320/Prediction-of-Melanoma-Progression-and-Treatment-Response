@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import Scope
-from app.models import Document, Hospital, Image, Lesion, Patient, StoredFile, Visit
+from app.models import Document, Hospital, Image, Lesion, Patient, Report, StoredFile, Visit
 from app.schemas.records import MyDocument, MyImage, MyLesion, MyOverview, MyVisit
 
 
@@ -21,7 +21,17 @@ async def overview(db: AsyncSession, scope: Scope) -> MyOverview:
         document_count=await db.scalar(select(func.count()).select_from(Document).where(
             Document.patient_id == patient.id, Document.visible_to_patient.is_(True))),
         last_visit_date=await db.scalar(select(func.max(visible_visits.c.visit_date))),
+        latest_report=await _latest_report(db, patient.id),
     )
+
+
+async def _latest_report(db: AsyncSession, patient_id) -> dict | None:
+    report = await db.scalar(select(Report).where(Report.patient_id == patient_id, Report.status == "released")
+                             .order_by(Report.released_at.desc()).limit(1))
+    if report is None:
+        return None
+    return {"id": str(report.id), "report_number": report.report_number, "final_category": report.final_category,
+            "released_at": report.released_at.isoformat()}
 
 
 async def my_lesions(db: AsyncSession, scope: Scope) -> list[MyLesion]:

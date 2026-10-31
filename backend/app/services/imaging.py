@@ -200,3 +200,22 @@ def make_thumbnail(data: bytes, size: int) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=85)
     return buf.getvalue()
+
+
+def normalise_mask(data: bytes, width: int | None, height: int | None) -> bytes:
+    """A doctor-drawn lesion outline: any PNG the size (or at least the shape) of the scan -> binary 0/255 PNG."""
+    img = _open(data)
+    if img.mode in ("RGBA", "LA") and img.getextrema()[-1][0] < 255:  # transparent background: use the alpha
+        img = img.getchannel("A")
+    img = img.convert("L")
+    if width and height and img.size != (width, height):
+        if abs(img.width / img.height - width / height) > 0.02:
+            raise UploadRejected("The outline does not have the same shape as the scan")
+        img = img.resize((width, height), PILImage.NEAREST)
+    mask = np.asarray(img) > 127
+    coverage = float(mask.mean())
+    if coverage == 0:
+        raise UploadRejected("The outline is empty")
+    if coverage > 0.98:
+        raise UploadRejected("The outline covers the whole image")
+    return _save_png(PILImage.fromarray((mask * 255).astype(np.uint8)), None)

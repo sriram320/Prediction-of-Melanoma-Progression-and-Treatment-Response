@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import REAL, Boolean, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import REAL, Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -89,5 +89,10 @@ class TreatmentEvent(Base):
     treatment_date: Mapped[date] = mapped_column(Date)
     response_category: Mapped[str] = mapped_column(ResponseCategory, default="pending")
     notes: Mapped[str | None] = mapped_column(Text)
+    # Ground truth for the fairness report (P5): only on biopsies and excisions; NULL = no result yet.
+    histopathology: Mapped[str | None] = mapped_column(String(20))
+    histopathology_recorded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True),
+                                                                         ForeignKey("users.id"))
+    histopathology_recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = created_at_col()

@@ -11,6 +11,7 @@ from app.models import (ClinicianReview, Explanation, InferenceJob, Lesion, Mode
 from app.schemas.analysis import (ExplanationOut, JobBrief, JobDetailOut, JobListItem, JobOut, ModelInfo,
                                   PredictionOut, VisitFeatures)
 from app.schemas.common import Page
+from app.schemas.review import ReviewOut
 
 AI_RESULT_ROLES = ("hospital_admin", "doctor")
 ACTIVE_JOB = ("queued", "running")
@@ -23,6 +24,19 @@ async def model_info(db: AsyncSession, model_version_id: uuid.UUID | None) -> Mo
 
 def _float(v) -> float | None:
     return float(v) if v is not None else None
+
+
+async def reviews_for(db: AsyncSession, prediction_id: uuid.UUID) -> list[ReviewOut]:
+    rows = (await db.execute(select(ClinicianReview, User.full_name).join(User, ClinicianReview.reviewer_id == User.id)
+                             .where(ClinicianReview.prediction_id == prediction_id)
+                             .order_by(ClinicianReview.created_at.desc()))).all()
+    return [ReviewOut(id=r.id, prediction_id=r.prediction_id, reviewer_name=name, decision=r.decision,
+                      final_category=r.final_category, reason=r.reason, created_at=r.created_at) for r, name in rows]
+
+
+async def latest_review(db: AsyncSession, prediction_id: uuid.UUID) -> ReviewOut | None:
+    reviews = await reviews_for(db, prediction_id)
+    return reviews[0] if reviews else None
 
 
 async def prediction_out(db: AsyncSession, pred: Prediction) -> PredictionOut:
@@ -39,8 +53,7 @@ async def prediction_out(db: AsyncSession, pred: Prediction) -> PredictionOut:
             features.append(VisitFeatures(visit_id=vid, visit_date=visit_dates[vid], features=v.get("features", {}),
                                           melanoma_probability=v.get("melanoma_probability")))
     features.sort(key=lambda f: f.visit_date)
-    reviewed = await db.scalar(select(func.count()).select_from(ClinicianReview)
-                               .where(ClinicianReview.prediction_id == pred.id))
+    review = await latest_review(db, pred.id)
     return PredictionOut(
         id=pred.id, lesion_id=pred.lesion_id, visit_id=pred.visit_id, visit_date=visit_dates.get(pred.visit_id),
         job_id=pred.job_id, model=await model_info(db, pred.model_version_id), is_baseline=pred.is_baseline,
@@ -48,7 +61,8 @@ async def prediction_out(db: AsyncSession, pred: Prediction) -> PredictionOut:
         uncertainty_score=_float(pred.uncertainty_score), referral_flag=pred.referral_flag,
         reason_codes=list(pred.reason_codes or []), modality_mask=pred.modality_mask or {},
         treatment_response=pred.treatment_response, inference_ms=pred.inference_ms, created_at=pred.created_at,
-        visit_features=features, model_error=raw.get("error"), reviewed=bool(reviewed))
+        visit_features=features, model_error=raw.get("error"), reviewed=review is not None,
+        latest_review=review)
 
 
 async def latest_prediction(db: AsyncSession, lesion_id: uuid.UUID) -> PredictionOut | None:

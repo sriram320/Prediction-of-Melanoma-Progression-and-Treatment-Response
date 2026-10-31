@@ -93,7 +93,7 @@ async def readable_file(db: AsyncSession, scope: Scope, file_id: uuid.UUID) -> S
     raise not_found("File")
 
 
-def _disposition(kind: str, filename: str) -> str:
+def disposition(kind: str, filename: str) -> str:
     ascii_name = filename.encode("ascii", "ignore").decode() or "file"
     return f'{kind}; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
 
@@ -120,7 +120,7 @@ async def read_content(db: AsyncSession, scope: Scope, file_id: uuid.UUID, actor
                       details={"variant": "original", "download": download}, request=request)
     await db.commit()
     name = stored.original_filename or f"{stored.id}"
-    headers = {**FILE_HEADERS, "Content-Disposition": _disposition("attachment" if download else "inline", name)}
+    headers = {**FILE_HEADERS, "Content-Disposition": disposition("attachment" if download else "inline", name)}
     return data, stored.mime_type, headers
 
 

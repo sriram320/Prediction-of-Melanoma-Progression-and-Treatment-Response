@@ -4,6 +4,7 @@ import { get } from "../../api/client.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import Icon from "../../components/Icon.jsx";
 import { Alert, PageHeader, StatCard } from "../../components/ui.jsx";
+import { PATIENT_CATEGORY } from "../../utils/clinical.js";
 import { errorMessage, formatDate } from "../../utils/format.js";
 
 export default function PatientOverview() {
@@ -17,6 +18,17 @@ export default function PatientOverview() {
         subtitle="This is your personal space for skin checks at your hospital." />
       <div className="stack stack--lg">
         {isError && <Alert kind="error">{errorMessage(error)}</Alert>}
+        {data?.latest_report && (
+          <Link to="/patient/reports" className={`card latest-report verdict verdict--${PATIENT_CATEGORY[data.latest_report.final_category].tone}`}
+            id="overview-latest-report">
+            <Icon name={PATIENT_CATEGORY[data.latest_report.final_category].icon} size={22} />
+            <div>
+              <div className="faint" style={{ fontSize: "0.8rem" }}>Latest report · shared {formatDate(data.latest_report.released_at)}</div>
+              <div className="verdict__title">{PATIENT_CATEGORY[data.latest_report.final_category].label}</div>
+              <span className="latest-report__link">Read the report <Icon name="arrowRight" size={14} /></span>
+            </div>
+          </Link>
+        )}
         <div className="stat-grid">
           <StatCard label="Spots being monitored" value={data?.lesion_count} />
           <StatCard label="Visits with photos" value={data?.visit_count} />

@@ -32,6 +32,9 @@ const PATHS = {
   activity: "M22 12h-4l-3 9L9 3l-3 9H2",
   clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2",
   play: "M6 4l14 8-14 8z",
+  download: "M12 4v12M7 11l5 5 5-5M4 20h16",
+  chart: "M3 3v18h18M7 15l4-4 3 3 5-6",
+  link: "M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1",
 };
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, title, ...rest }) {

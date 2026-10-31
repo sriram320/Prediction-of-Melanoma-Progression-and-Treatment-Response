@@ -15,5 +15,8 @@ export function useCan() {
     excludeVisits: user.role === "doctor",
     runAnalysis: user.role === "doctor" || user.role === "technician",
     viewAiResults: user.role === "doctor" || user.role === "hospital_admin",
+    review: user.role === "doctor",
+    writeReports: user.role === "doctor",
+    releaseReports: user.role === "doctor" || user.role === "hospital_admin",
   };
 }

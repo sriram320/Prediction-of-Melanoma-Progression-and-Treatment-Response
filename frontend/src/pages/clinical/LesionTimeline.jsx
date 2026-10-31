@@ -1,16 +1,20 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { get, patch, post, postForm } from "../../api/client.js";
+import { api, get, patch, post, postForm } from "../../api/client.js";
 import FileDrop from "../../components/FileDrop.jsx";
 import Icon from "../../components/Icon.jsx";
 import ImageViewer from "../../components/ImageViewer.jsx";
+import MaskEditor from "../../components/MaskEditor.jsx";
 import PageLoading from "../../components/PageLoading.jsx";
 import SecureImage from "../../components/SecureImage.jsx";
 import {
   Alert, Badge, Button, Modal, PageHeader, Select, TextArea, TextInput,
 } from "../../components/ui.jsx";
-import { modalityLabel, MODALITIES, QUALITY_FLAGS, siteLabel } from "../../utils/clinical.js";
+import {
+  HISTOPATHOLOGY, HISTOPATHOLOGY_TYPES, histopathologyLabel, modalityLabel, MODALITIES, QUALITY_FLAGS, siteLabel,
+  treatmentLabel, TREATMENT_TYPES,
+} from "../../utils/clinical.js";
 import { errorMessage, formatDate, formatDateTime, todayISO } from "../../utils/format.js";
 import AnalysisPanel from "./AnalysisPanel.jsx";
 import { useCan, usePortalBase } from "./portal.js";
@@ -161,6 +165,7 @@ function VisitCard({ visit, number, onOpen, onChanged }) {
   const can = useCan();
   const [showUpload, setShowUpload] = useState(visit.images.length === 0 && !visit.excluded);
   const [excluding, setExcluding] = useState(false);
+  const [outline, setOutline] = useState(null);
   const meta = [visit.device_model, visit.polarised == null ? null : visit.polarised ? "Polarised" : "Non-polarised",
     visit.illumination].filter(Boolean).join(" · ");
 
@@ -189,14 +194,24 @@ function VisitCard({ visit, number, onOpen, onChanged }) {
         {visit.images.length > 0 ? (
           <div className="thumb-grid">
             {visit.images.map((img) => (
-              <button key={img.id} type="button" className="thumb" id={`image-${img.id}`}
-                onClick={() => onOpen(img)} aria-label={`Open ${modalityLabel(img.modality)} image from ${formatDate(visit.visit_date)}`}>
-                <SecureImage fileId={img.file_id} alt="" />
-                <span className="thumb__meta">
-                  <span>{modalityLabel(img.modality)}</span>
-                  {img.quality_flags.map((f) => <span key={f} className="thumb__flag">{QUALITY_FLAGS[f] || f}</span>)}
-                </span>
-              </button>
+              <div key={img.id} className="thumb-item">
+                <button type="button" className="thumb" id={`image-${img.id}`}
+                  onClick={() => onOpen(img)} aria-label={`Open ${modalityLabel(img.modality)} image from ${formatDate(visit.visit_date)}`}>
+                  <SecureImage fileId={img.file_id} alt="" />
+                  <span className="thumb__meta">
+                    <span>{modalityLabel(img.modality)}</span>
+                    {img.quality_flags.map((f) => <span key={f} className="thumb__flag">{QUALITY_FLAGS[f] || f}</span>)}
+                  </span>
+                </button>
+                {can.viewAiResults && (img.mask_file_id || can.review) && (
+                  <button type="button" className="thumb-item__outline" id={`image-${img.id}-outline`}
+                    onClick={() => setOutline(img)}>
+                    {img.mask_confirmed ? "Outline confirmed"
+                      : img.mask_file_id ? `Outline ${Math.round((img.mask_confidence ?? 0) * 100)}%` : "Draw outline"}
+                    {!img.mask_confirmed && img.mask_file_id && img.mask_confidence < 0.6 && <span className="thumb__flag">low</span>}
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         ) : (
@@ -213,11 +228,123 @@ function VisitCard({ visit, number, onOpen, onChanged }) {
       </article>
       {excluding && <ExcludeDialog visit={visit} onClose={() => setExcluding(false)}
         onDone={() => { setExcluding(false); onChanged(); }} />}
+      {outline && (
+        <MaskEditor image={outline} caption={`${formatDate(visit.visit_date)} · ${modalityLabel(outline.modality)}`}
+          canEdit={can.review} onClose={() => setOutline(null)}
+          onSubmit={async (fd) => {
+            await api(`/images/${outline.id}/mask`, { method: "PUT", body: fd });
+            setOutline(null);
+            onChanged();
+          }} />
+      )}
     </li>
   );
 }
 
 const ACTIVE = ["queued", "running"];
+
+function TreatmentModal({ lesionId, onClose, onSaved }) {
+  const [form, setForm] = useState({ treatment_type: "excision", treatment_date: todayISO(), notes: "", histopathology: "" });
+  const [error, setError] = useState("");
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const sampled = HISTOPATHOLOGY_TYPES.includes(form.treatment_type);
+  const save = useMutation({
+    mutationFn: () => post(`/lesions/${lesionId}/treatment-events`, {
+      ...form, notes: form.notes.trim() || null, histopathology: sampled ? form.histopathology || null : null,
+    }),
+    onSuccess: onSaved,
+    onError: (err) => setError(errorMessage(err)),
+  });
+  return (
+    <Modal id="treatment-modal" title="Record a treatment" onClose={onClose}
+      footer={<>
+        <Button variant="secondary" onClick={onClose} id="treatment-cancel">Cancel</Button>
+        <Button type="submit" form="treatment-form" loading={save.isPending} id="treatment-submit">Save treatment</Button>
+      </>}>
+      <form id="treatment-form" className="stack" noValidate onSubmit={(e) => { e.preventDefault(); setError(""); save.mutate(); }}>
+        <Alert kind="error" id="treatment-error">{error}</Alert>
+        <div className="form-grid">
+          <Select id="treatment-type" label="Treatment" value={form.treatment_type} onChange={set("treatment_type")}
+            options={TREATMENT_TYPES} />
+          <TextInput id="treatment-date" label="Date" type="date" value={form.treatment_date} max={todayISO()}
+            onChange={set("treatment_date")} />
+          {sampled && (
+            <div className="field--full">
+              <Select id="treatment-histopathology" label="Histopathology" value={form.histopathology}
+                onChange={set("histopathology")} options={HISTOPATHOLOGY}
+                hint="You can add the result later, when it comes back from the lab. It is used for the fairness report." />
+            </div>
+          )}
+          <div className="field--full">
+            <TextArea id="treatment-notes" label="Notes (optional)" rows={2} value={form.notes} onChange={set("notes")} maxLength={2000} />
+          </div>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** The histopathology result of a biopsy or excision; doctors record it when the lab report arrives. */
+function HistopathologyResult({ event, onChanged }) {
+  const can = useCan();
+  const [value, setValue] = useState(event.histopathology || "");
+  const [error, setError] = useState("");
+  const save = useMutation({
+    mutationFn: () => patch(`/treatment-events/${event.id}`, { histopathology: value || null }),
+    onSuccess: onChanged,
+    onError: (err) => setError(errorMessage(err)),
+  });
+  if (!HISTOPATHOLOGY_TYPES.includes(event.treatment_type)) return null;
+  if (!can.review) {
+    return <div className="histo-result faint">Histopathology: {histopathologyLabel(event.histopathology)}</div>;
+  }
+  const id = `histo-${event.id}`;
+  return (
+    <div className="histo-result">
+      <label htmlFor={id} className="faint">Histopathology</label>
+      <select id={id} className="select" value={value} onChange={(e) => setValue(e.target.value)}>
+        {HISTOPATHOLOGY.map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}
+      </select>
+      {value !== (event.histopathology || "") && (
+        <Button size="sm" variant="secondary" id={`${id}-save`} loading={save.isPending}
+          onClick={() => { setError(""); save.mutate(); }}>Save result</Button>
+      )}
+      {error && <span className="field__error">{error}</span>}
+    </div>
+  );
+}
+
+function Treatments({ lesionId, events, onChanged }) {
+  const can = useCan();
+  const [adding, setAdding] = useState(false);
+  if (!events.length && !can.review) return null;
+  return (
+    <section className="card treatments" aria-labelledby="treatments-title" style={{ marginBottom: 20 }}>
+      <div className="row row--between">
+        <h2 id="treatments-title" className="card__title">Treatments</h2>
+        {can.review && (
+          <Button variant="secondary" size="sm" id="treatment-add" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={14} /> Record treatment
+          </Button>
+        )}
+      </div>
+      {events.length === 0 ? <p className="faint" style={{ marginTop: 8 }}>No treatments recorded for this lesion.</p> : (
+        <ul className="treatments__list">
+          {events.map((t) => (
+            <li key={t.id}>
+              <strong>{treatmentLabel(t.treatment_type)}</strong>
+              <span className="faint"> · {formatDate(t.treatment_date)}</span>
+              {t.notes && <div className="muted" style={{ fontSize: "0.88rem" }}>{t.notes}</div>}
+              <HistopathologyResult key={`${t.id}-${t.histopathology}`} event={t} onChanged={onChanged} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding && <TreatmentModal lesionId={lesionId} onClose={() => setAdding(false)}
+        onSaved={() => { setAdding(false); onChanged(); }} />}
+    </section>
+  );
+}
 
 /** Run-analysis control plus the status of the latest job. Technicians see progress, never results. */
 function AnalysisControl({ lesionId, job, analysable, onQueued }) {
@@ -329,7 +456,9 @@ export default function LesionTimeline() {
         </>} />
 
       <AnalysisControl lesionId={lesion.id} job={data.latest_job} analysable={analysable} onQueued={refresh} />
-      {data.latest_prediction && <div style={{ marginBottom: 20 }}><AnalysisPanel prediction={data.latest_prediction} /></div>}
+      {data.latest_prediction && <div style={{ marginBottom: 20 }}><AnalysisPanel prediction={data.latest_prediction} lesionId={lesion.id} onReviewed={refresh} /></div>}
+
+      <Treatments lesionId={lesion.id} events={data.treatment_events} onChanged={refresh} />
 
       {analysable < 2 && (
         <div style={{ marginBottom: 20 }}>

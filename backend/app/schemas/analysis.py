@@ -4,6 +4,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.schemas.review import ReviewOut
+
 
 class AnalyzeIn(BaseModel):
     visit_id: uuid.UUID | None = None  # default: the latest non-excluded visit with scans
@@ -81,6 +83,7 @@ class PredictionOut(BaseModel):
     visit_features: list[VisitFeatures]
     model_error: str | None
     reviewed: bool
+    latest_review: ReviewOut | None = None
 
 
 class ExplanationOut(BaseModel):
