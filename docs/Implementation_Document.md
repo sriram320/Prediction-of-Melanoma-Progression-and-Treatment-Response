@@ -376,10 +376,12 @@ the browser sees a single origin. Docker Compose (with PostgreSQL 16) remains th
 
 ## 13. Phased roadmap
 
-Status as of 2026-10-31: **P0-P5 are done** (verified with a native local run against PostgreSQL 18, 64 backend and
+Status as of 2026-11-01: **P0-P5 are done** (verified with a native local run against PostgreSQL 18, 64 backend and
 10 ml-service tests; `docker compose up` has not been run yet). **P6 has started**: the model is being trained on
-Google Colab with the team's Week 5-9 code (`training/`, see its README). Step 1, lesion segmentation, is ready to
-run; the classifier, the sequence model and the ONNX adapter follow. P7 (hardening) can proceed in parallel.
+Google Colab with the team's Week 5-9 code (`training/`, see its README). Step 1, lesion segmentation, is trained
+(model 0.1.0: test Dice 0.907 with TTA vs 0.900 in Week 5; confidence AUROC 0.875 vs 0.824; 0.8 s per image on CPU
+with ONNX Runtime). The classifier, the sequence model and the ONNX adapter follow. P7 (hardening) can proceed in
+parallel.
 
 | Phase | Deliverable | Done when |
 |---|---|---|

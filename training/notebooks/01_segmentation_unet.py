@@ -162,27 +162,10 @@ elif QUICK_RUN:
 else:
     fetch(("2017/ISIC-2017_Training_Data.zip", "2017/ISIC-2017_Training_Part1_GroundTruth.zip"), DATA / "isic2017")
     fetch(("2017/ISIC-2017_Validation_Data.zip", "2017/ISIC-2017_Validation_Part1_GroundTruth.zip"), DATA / "isic2017")
-    ids_all = set(SPLIT.image_id)
-
-    # ISIC 2018
+    # Only ISIC 2016-2018 have lesion masks; the 2016 images are all inside ISIC 2017, and 2019+ are labels only.
+    ids17 = set(SPLIT.image_id)
     fetch(("2018/ISIC2018_Task1-2_Training_Input.zip", "2018/ISIC2018_Task1_Training_GroundTruth.zip"),
-          DATA / "isic2018_extra", keep=lambda stem: stem not in ids_all)
-
-    # ISIC 2014, 2015, 2016 (older challenges with segmentation masks)
-    for year in ["2014", "2015", "2016"]:
-        try:
-            fetch((f"{year}/ISIC-{year}_Training_Data.zip", f"{year}/ISIC-{year}_Training_Part1_GroundTruth.zip"),
-                  DATA / f"isic{year}_extra", keep=lambda stem: stem not in ids_all)
-        except:
-            print(f"Skipping ISIC {year} (not available or different format)")
-
-    # ISIC 2019 (has Task 1 segmentation)
-    try:
-        fetch(("2019/ISIC_2019_Training_Input.zip", "2019/ISIC_2019_Training_GroundTruth.zip"),
-              DATA / "isic2019_extra", keep=lambda stem: stem not in ids_all)
-    except:
-        print("Skipping ISIC 2019 (not available or different format)")
-
+          DATA / "isic2018_extra", keep=lambda stem: stem not in ids17)  # copies of 2017 images by id
     with zipfile.ZipFile(CACHE, "w", zipfile.ZIP_STORED) as z:
         for p in DATA.rglob("*"):
             if p.is_file():
@@ -197,25 +180,13 @@ if QUICK_RUN:  # 90 / 30 / 30 of the validation images: only checks that the cod
     SPLIT["split"] = np.random.default_rng(SEED).permutation(["train"] * 90 + ["val"] * 30 + ["test"] * 30)[:len(SPLIT)]
     extra = []
 else:
-    # Collect thumbnails from the base ISIC 2017 set for duplicate detection
+    # Week 5 rule: ISIC 2018 images that are not copies of any ISIC 2017 image (thumbnail cosine similarity > 0.97).
+    extra_paths = sorted((DATA / "isic2018_extra" / "images").glob("*.jpg"))
     s17 = np.stack([team_data.tiny_signature(p) for p in tqdm(SPLIT.img, desc="signatures 2017")])
-    s17_dict = {p.stem: s for p, s in zip(SPLIT.img, s17)}
-
-    extra = []
-    years_extra = ["2018", "2014", "2015", "2016", "2019"]
-    for year in years_extra:
-        extra_dir = DATA / f"isic{year}_extra" / "images"
-        if not extra_dir.exists():
-            print(f"ISIC {year}: no images found")
-            continue
-        extra_paths = sorted(extra_dir.glob("*.jpg"))
-        s_extra = np.stack([team_data.tiny_signature(p) for p in tqdm(extra_paths, desc=f"signatures {year}")])
-        sim = (s_extra @ s17.T).max(1) if len(extra_paths) else np.zeros(0)
-        new_images = [p for p, s in zip(extra_paths, sim) if s <= 0.97]
-        extra.extend(new_images)
-        print(f"ISIC {year}: {len(extra_paths)} total; {len(new_images)} kept after duplicate check (threshold 0.97)")
-
-    print(f"\nTotal extra images from ISIC 2014-2019: {len(extra)}")
+    s18 = np.stack([team_data.tiny_signature(p) for p in tqdm(extra_paths, desc="signatures 2018")])
+    sim = (s18 @ s17.T).max(1) if len(extra_paths) else np.zeros(0)
+    extra = [p for p, s in zip(extra_paths, sim) if s <= 0.97]
+    print(f"ISIC 2018 images not in ISIC 2017 by id: {len(extra_paths)}; after the thumbnail check: {len(extra)}")
 
 
 def mask_path(img_path: Path) -> Path:
