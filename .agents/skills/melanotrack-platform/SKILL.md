@@ -125,7 +125,7 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 | P3 Inference pipeline (mock) | ✅ Done 2026-10-31 (50 backend + 10 ml-service tests; analysis runs in ~2.6 s on the demo lesion; doctor/admin analysis panel, technician jobs page) |
 | P4 Doctor review & PDF reports | ✅ Done 2026-10-31 (58 backend tests; worklist, review/override, outline editor, treatments, report editor, sign/release/amend, patient Reports page) |
 | P5 Dashboards, fairness, audit viewer | ✅ Done 2026-10-31 (64 backend tests; risk trend + measurement charts, hospital activity dashboard, fairness report for SA/HA/DR with CSV export, audit viewer for SA/HA with hash-chain verification, histopathology results on biopsies/excisions; migration 0004) |
-| P6 Real model integration | 🚧 In progress 2026-10-31: Sriram trains the model on Google Colab with the team's Week 5-9 code (`training/`). Step 1 (U-Net segmentation, notebook 01) trained 2026-11-01 as 0.1.0 (1,946 train images = ISIC 2017 + new ISIC 2018; test Dice 0.907 TTA vs 0.900 Week 5, confidence AUROC 0.875; ONNX in `ml_service/models/melanotrack-longitudinal/0.1.0/`, 0.8 s/image 8-view on CPU). Step 2 (EfficientNet-B3 classifier + 256-d embedding + OOD stats + numpy Grad-CAM, notebook 02) ready and CPU-tested on fake data (0.34 s/image 8-view on the laptop); steps 3-4 (sequence model, ONNX adapter) to follow |
+| P6 Real model integration | 🚧 In progress 2026-10-31: Sriram trains the model on Google Colab with the team's Week 5-9 code (`training/`). Step 1 (U-Net segmentation, notebook 01) trained 2026-11-01 as 0.1.0 (1,946 train images = ISIC 2017 + new ISIC 2018; test Dice 0.907 TTA vs 0.900 Week 5, confidence AUROC 0.875; ONNX in `ml_service/models/melanotrack-longitudinal/0.1.0/`, 0.8 s/image 8-view on CPU). Step 2 (EfficientNet-B3 classifier + 256-d embedding + OOD stats + numpy Grad-CAM, notebook 02) trained 2026-11-01 as 0.1.0 on 49,972 images (ISIC 2017 train + ISIC 2019/2020, deduplicated, split by lesion/patient; best epoch 4 of 15): ISIC 2017 test melanoma AUROC 0.870 [0.824-0.910] vs 0.802 best in Week 9; internal ISIC 2019/2020 test AUROC 0.934, ECE 0.010 after temperature 1.19; installed next to the segmentation files and re-checked on the laptop CPU. Known gaps: ISIC 2020 melanoma sensitivity 0.37 at the pooled Youden threshold (AUROC 0.875), and the embedding OOD score flags 0/39 synthetic non-dermoscopy images, so step 4 must add image-level gates. Steps 3-4 (sequence model, ONNX adapter) to follow |
 | P7 Hardening (RLS, backups, tests, FHIR) | ⏳ Not started |
 
 ## 8. Open questions for the user (remove when answered)
@@ -148,6 +148,13 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
   MODEL — NOT FOR CLINICAL USE" instead, since it is validated only on public and simulated data. Confirm before P6.
 - Segmentation τ_seg: the value tuned on validation (0.94) flags 94/430 test images (22%) for mask confirmation, and
   each unconfirmed flag becomes a referral; Week 5's 0.85 flags 22 (5%) but misses more bad masks. Which to use?
+- Classifier operating point: Youden thresholds (0.18 ISIC 2017, 0.097 ISIC 2019/2020) catch only 15/41 ISIC 2020
+  melanomas (screening-like photos); a sensitivity-first threshold (e.g. 0.018) catches 33/41 at 80% specificity.
+  The single-image probability is an input to the sequence model, not the final category. Which threshold should the
+  per-visit display and the step 3 model use?
+- OOD: the classifier's Mahalanobis score (τ_OOD 15.4) does not flag noise, flat colour or stripe images. Proposed
+  for step 4: an unrecognised image triggers referral if ANY of OOD, quality (blur/glare), segmentation confidence
+  or "no lesion found" fires, with a test that all 39 sanity images end in referral. Confirm.
 - Real serial dermoscopy: access to the UQ longitudinal dataset (Sci Data 2025) to be requested by the user/mentor.
 - Hosting target (lab machine / cloud VM / local demo) and domain for HTTPS.
 - Keep the name "MelanoTrack"?

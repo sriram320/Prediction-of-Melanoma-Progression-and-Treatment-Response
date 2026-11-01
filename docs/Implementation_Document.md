@@ -380,8 +380,11 @@ Status as of 2026-11-01: **P0-P5 are done** (verified with a native local run ag
 10 ml-service tests; `docker compose up` has not been run yet). **P6 has started**: the model is being trained on
 Google Colab with the team's Week 5-9 code (`training/`, see its README). Step 1, lesion segmentation, is trained
 (model 0.1.0: test Dice 0.907 with TTA vs 0.900 in Week 5; confidence AUROC 0.875 vs 0.824; 0.8 s per image on CPU
-with ONNX Runtime). Step 2, the EfficientNet-B3 melanoma classifier and image embedding trained on ISIC 2017-2020,
-is ready to run. The sequence model and the ONNX adapter follow. P7 (hardening) can proceed in
+with ONNX Runtime). Step 2, the EfficientNet-B3 melanoma classifier and image embedding, is trained on 49,972 ISIC 2017-2020 images
+(model 0.1.0: ISIC 2017 test melanoma AUROC 0.870 vs 0.802 for the best Week 9 model; internal ISIC 2019/2020 test
+AUROC 0.934, calibration error 0.010). Two gaps carry into the adapter: low sensitivity on ISIC 2020 screening
+photos at the default threshold, and an OOD score that misses synthetic non-dermoscopy images (step 4 adds
+image-level gates). The sequence model and the ONNX adapter follow. P7 (hardening) can proceed in
 parallel.
 
 | Phase | Deliverable | Done when |

@@ -15,7 +15,7 @@ the team's design documents (Week 5 to 9) and reuses the team's code.
 | Step | Module | Model | Data | Status |
 |---|---|---|---|---|
 | 1 | M3 segmentation | U-Net, ResNet-34 encoder, 512 px, 8-way TTA confidence | ISIC 2017 + ISIC 2018 Task 1 | Trained (0.1.0): test Dice 0.907 vs 0.900 in Week 5 · `01_segmentation_unet.ipynb` |
-| 2 | M5 per-visit encoder | EfficientNet-B3 fine-tuned at 300 px on 9 diagnoses: calibrated melanoma probability, 256-d embedding, Mahalanobis OOD statistics, Grad-CAM | ISIC 2017 splits + ISIC 2019 (HAM10000, BCN20000, MSK) + ISIC 2020; copies of ISIC 2017 images removed, split by lesion/patient | Notebook ready: `02_classifier_effnet.ipynb` |
+| 2 | M5 per-visit encoder | EfficientNet-B3 fine-tuned at 300 px on 9 diagnoses: calibrated melanoma probability, 256-d embedding, Mahalanobis OOD statistics, Grad-CAM | ISIC 2017 splits + ISIC 2019 (HAM10000, BCN20000, MSK) + ISIC 2020; copies of ISIC 2017 images removed, split by lesion/patient | Trained (0.1.0): ISIC 2017 test AUROC 0.870 vs 0.802 best in Week 9 · `02_classifier_effnet.ipynb` |
 | 3 | M7/M8/M11 sequence model | GRU-128 + attention over the step 2 embeddings, 5-seed ensemble, focal loss, temperature scaling, conformal set, OOD threshold | Simulated sequences (Week 7 simulator) now; real serial dermoscopy when access is granted | Later |
 | 4 | Packaging | ONNX models + `ml_service/app/adapters/longitudinal.py`, test vectors, model card | | Later |
 

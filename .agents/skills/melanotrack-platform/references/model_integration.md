@@ -129,7 +129,10 @@ melanotrack-longitudinal/<version>/` (e.g. `segmentation.onnx`, `segmentation.js
 Step 2 adds `classifier.onnx` (inputs 300 px; outputs `logits` over 9 diagnoses, a 256-d `embedding` and the
 `features` map), `classifier.json` (temperature, classes, thresholds), `classifier_ood.npz` (Mahalanobis mean,
 precision, `tau_ood`) and `classifier_cam.npz` (weights for numpy Grad-CAM, formula in the JSON). Average logits and
-embeddings over the 8 TTA views; `melanoma_probability = softmax(logits / T)[MEL]`.
+embeddings over the 8 TTA views; `melanoma_probability = softmax(logits / T)[MEL]`. Model 0.1.0's OOD distance
+alone misses flat-colour, stripe and noise images (0/39 flagged), so the adapter must also refer on low quality,
+low segmentation confidence or no lesion found. The ISIC 2020-type melanomas get low probabilities, so do not use
+the probability alone as a "routine" signal.
 Note: `tau_seg` is a TTA-agreement threshold (Week 5: 0.85); set the backend's `SEGMENTATION_CONFIDENCE_THRESHOLD` to
 match when the adapter goes live (the mock uses solidity with 0.6).
 
