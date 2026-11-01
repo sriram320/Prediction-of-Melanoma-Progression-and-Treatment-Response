@@ -183,7 +183,7 @@ def extract(zf: zipfile.ZipFile, wanted: set, desc: str) -> int:
     """Resizes every wanted image (by file stem) of an archive into IMG."""
     IMG.mkdir(parents=True, exist_ok=True)
     names = [n for n in zf.namelist() if n.lower().endswith(".jpg") and not Path(n).name.startswith("._")
-             and "__MACOSX" not in n and Path(n).stem in wanted]
+             and "__MACOSX" not in n and Path(n).stem in wanted and not (IMG / f"{Path(n).stem}.jpg").exists()]
     with ThreadPoolExecutor(4) as pool:
         for i in tqdm(range(0, len(names), 64), desc=desc):
             list(pool.map(save_square, [(Path(n).stem, zf.read(n)) for n in names[i:i + 64]]))
@@ -238,21 +238,43 @@ def quick_subset(t):
     return pd.concat(parts, ignore_index=True)
 
 
+def part_path(src):
+    return Path(DRIVE_DIR) / "data" / f"isic_cls_{IMG_SIZE}_part_{src}.zip"
+
+
+def keep_part(src, ids):
+    """Saves one finished source to Drive, so a disconnected session does not prepare it again."""
+    if QUICK_RUN:
+        return
+    tmp = part_path(src).with_name(part_path(src).name + ".tmp")
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:
+        for i in tqdm(sorted(ids), desc=f"save {src} to Drive"):
+            if (IMG / f"{i}.jpg").exists():
+                z.write(IMG / f"{i}.jpg", f"{i}.jpg")
+    tmp.replace(part_path(src))  # written under a temporary name first: a half-written part is never used
+
+
 def fetch_images(t):
-    want17 = set(t.image_id[t.source == "isic2017"])
-    if SEG_CACHE.exists():  # the ISIC 2017 images notebook 01 already prepared (512 px)
-        with zipfile.ZipFile(SEG_CACHE) as z:
-            extract(z, want17, "ISIC 2017 (from notebook 01's cache)")
-    else:
-        for path in ("2017/ISIC-2017_Training_Data.zip", "2017/ISIC-2017_Validation_Data.zip"):
-            with open_archive(path) as z:
-                extract(z, want17, Path(path).name)
-            done_with(path)
-    for path, src in (("2019/ISIC_2019_Training_Input.zip", "isic2019"), ("2020/ISIC_2020_Training_JPEG.zip", "isic2020")):
-        with open_archive(path) as z:
-            n = extract(z, set(t.image_id[t.source == src]), Path(path).name)
-        print(f"{src}: {n} images resized")
-        done_with(path)
+    IMG.mkdir(parents=True, exist_ok=True)
+    jobs = [("isic2017", ("2017/ISIC-2017_Training_Data.zip", "2017/ISIC-2017_Validation_Data.zip")),
+            ("isic2019", ("2019/ISIC_2019_Training_Input.zip",)), ("isic2020", ("2020/ISIC_2020_Training_JPEG.zip",))]
+    for src, archives in jobs:
+        ids = set(t.image_id[t.source == src])
+        if part_path(src).exists() and not QUICK_RUN:
+            with zipfile.ZipFile(part_path(src)) as z:
+                z.extractall(IMG)
+            print(f"{src}: already prepared in an earlier session ({part_path(src).name})")
+            continue
+        if src == "isic2017" and SEG_CACHE.exists():  # the ISIC 2017 images notebook 01 already prepared (512 px)
+            with zipfile.ZipFile(SEG_CACHE) as z:
+                extract(z, ids, "ISIC 2017 (from notebook 01's cache)")
+        else:
+            for path in archives:
+                with open_archive(path) as z:
+                    extract(z, ids, Path(path).name)
+                done_with(path)
+        print(f"{src}: {sum((IMG / f'{i}.jpg').exists() for i in ids)} of {len(ids)} images ready")
+        keep_part(src, ids)
 
 
 class Groups:
@@ -329,10 +351,14 @@ else:
     INDEX = assign_splits(table[have])
     INDEX.to_csv(DATA / "index.csv", index=False)
     if not QUICK_RUN:
-        with zipfile.ZipFile(CACHE, "w", zipfile.ZIP_STORED) as z:
+        tmp = CACHE.with_name(CACHE.name + ".tmp")
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:
             for p in tqdm(sorted(DATA.rglob("*")), desc="cache to Drive"):
                 if p.is_file():
                     z.write(p, p.relative_to(DATA))
+        tmp.replace(CACHE)
+        for src in ("isic2017", "isic2019", "isic2020"):
+            part_path(src).unlink(missing_ok=True)  # the full cache replaces the per-source parts
         print("Cached for next time:", CACHE, f"{CACHE.stat().st_size / 1e6:.0f} MB")
 
 print(INDEX.groupby(["split", "source"]).dx.value_counts().unstack(fill_value=0).to_string())
