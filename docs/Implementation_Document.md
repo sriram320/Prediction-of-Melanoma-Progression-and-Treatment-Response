@@ -221,6 +221,17 @@ This is the default (`MODEL_ADAPTER=mock`). It produces **deterministic, realist
 
 Integration steps: drop the files into `ml_service/models/<name>/<version>/`, write `adapters/<name>.py`, set `MODEL_ADAPTER=<name>`, run the test vectors, then register the version through `POST /v1/models` and activate it.
 
+### 7.5 Training plan (P6, as built)
+The model is trained by the team on **Google Colab** (free T4 GPU) from notebooks in `training/notebooks/`, reusing
+the Week 5-9 code in `training/melanotrack_ml/`. Results and checkpoints go to Google Drive; the exported **ONNX**
+models are copied into `ml_service/models/melanotrack-longitudinal/<version>/` and run on CPU with **ONNX Runtime**
+(which, like OpenCV, loads on the Windows dev laptop under Smart App Control). Steps, following Week 6:
+(1) U-Net segmentation at 512 px with TTA confidence (ISIC 2017 + 2018); (2) fine-tuned EfficientNet-B3 per-visit
+encoder and melanoma probability with Grad-CAM++; (3) GRU + attention ensemble with temperature scaling, a conformal
+set and an out-of-distribution score, trained on simulated sequences until real serial dermoscopy (the UQ
+longitudinal dataset) is available; (4) the `longitudinal` adapter, test vectors and model card. The 430-image ISIC
+2017 test set of Weeks 5-9 is kept for final scores so results stay comparable with the weekly reports.
+
 ---
 
 ## 8. Core workflows
@@ -366,8 +377,9 @@ the browser sees a single origin. Docker Compose (with PostgreSQL 16) remains th
 ## 13. Phased roadmap
 
 Status as of 2026-10-31: **P0-P5 are done** (verified with a native local run against PostgreSQL 18, 64 backend and
-10 ml-service tests; `docker compose up` has not been run yet). P6 (real model) waits for the team's trained model;
-P7 (hardening) can start before that.
+10 ml-service tests; `docker compose up` has not been run yet). **P6 has started**: the model is being trained on
+Google Colab with the team's Week 5-9 code (`training/`, see its README). Step 1, lesion segmentation, is ready to
+run; the classifier, the sequence model and the ONNX adapter follow. P7 (hardening) can proceed in parallel.
 
 | Phase | Deliverable | Done when |
 |---|---|---|

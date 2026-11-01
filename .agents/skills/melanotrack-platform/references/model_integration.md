@@ -121,6 +121,14 @@ The registry is in `adapters/__init__.py`: `ADAPTERS = {"mock": MockAdapter, ...
 - `MOCK_FORCE_ERROR=1` raises an exception (used to test the safety wrapper).
 - Always returns `is_mock=True`; its version is the last part of `MODEL_DIR`.
 
+## 4b. Training (P6, in progress)
+The model is now trained in-house on Google Colab: `training/README.md` (steps, Drive layout, rules) and
+`training/notebooks/`. Artifacts arrive as ONNX files + JSON metadata in `MyDrive/melanotrack/models/
+melanotrack-longitudinal/<version>/` (e.g. `segmentation.onnx`, `segmentation.json` with input size, mean/std, TTA,
+`tau_seg`, metrics). The adapter will run them with ONNX Runtime (CPU) and OpenCV; no torch in the ml-service.
+Note: `tau_seg` is a TTA-agreement threshold (Week 5: 0.85); set the backend's `SEGMENTATION_CONFIDENCE_THRESHOLD` to
+match when the adapter goes live (the mock uses solidity with 0.6).
+
 ## 5. Integrating the real model (checklist)
 1. Receive from teammates: weights (TorchScript/ONNX preferred), preprocessing spec, sequence and time-gap
    encoding, segmentation weights + threshold, calibration temperature, category thresholds,

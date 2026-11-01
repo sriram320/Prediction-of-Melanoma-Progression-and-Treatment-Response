@@ -1,0 +1,135 @@
+{
+  "n_lesions": 430,
+  "n_visits": 3440,
+  "seg_dice_mean": 0.8808122990474613,
+  "reg_err_median_px": 0.21386916409183945,
+  "reg_success_2px": 0.8875968992248062,
+  "reg_success_5px": 0.9100775193798449,
+  "reg_fallback_rate": 0.09147286821705426,
+  "accepted_fraction": 0.865967365967366,
+  "accepted_fraction_progressing": 0.8325581395348837,
+  "accepted_fraction_stable": 0.8995327102803738,
+  "area_change_accuracy": {
+    "pipeline": {
+      "mae_pp": 16.928462602624354,
+      "medae_pp": 7.51071295852182,
+      "bias_pp": -5.106066224056077,
+      "sd_pp": 29.481227722362927,
+      "r": 0.6518755075907736,
+      "loa_low": -62.88927255988742,
+      "loa_high": 52.67714011177526
+    },
+    "pipeline_accepted": {
+      "mae_pp": 15.049373836728835,
+      "medae_pp": 6.639583965070095,
+      "bias_pp": -5.168787725914582,
+      "sd_pp": 25.283785603272854,
+      "r": 0.7081106392395485,
+      "loa_low": -54.72500750832938,
+      "loa_high": 44.38743205650021
+    },
+    "oracle": {
+      "mae_pp": 0.5692623785112845,
+      "medae_pp": 0.11272763819507059,
+      "bias_pp": -0.24756695159937822,
+      "sd_pp": 1.8412206606499266,
+      "r": 0.9983068614892893,
+      "loa_low": -3.8563594464732343,
+      "loa_high": 3.3612255432744775
+    }
+  },
+  "oracle_compactness_prog_v1": 2.7688569636362663,
+  "pipeline_compactness_prog_v1": 1.3174126611278008,
+  "oracle_compactness_prog_v4": 1.7508905221277267,
+  "pipeline_compactness_prog_v4": 1.3274683256995854,
+  "prog_true_change_min": 28.608923884514436,
+  "prog_true_change_max": 94.7522086982899,
+  "prog_true_change_mean": 57.83152318383709,
+  "flagged_mae_pp": 29.06901002054064,
+  "accepted_prog_bias_pp": -11.13284550646144,
+  "accepted_prog_mae_pp": 23.823424598592073,
+  "accepted_prog_true_mean": 57.62513553730985,
+  "accepted_prog_meas_mean": 46.49229003084841,
+  "accepted_stable_mae_pp": 6.890646115307947,
+  "error_decomposition_accepted": {
+    "oracle": {
+      "mae_pp": 0.3412129761649082,
+      "bias_prog_pp": -0.14276693876213245,
+      "sd_stable_pp": 2.872696842792601
+    },
+    "seg_only": {
+      "mae_pp": 14.88827967597171,
+      "bias_prog_pp": -10.574855911376707,
+      "sd_stable_pp": 11.648504179646766
+    },
+    "reg_only": {
+      "mae_pp": 0.7053265596208963,
+      "bias_prog_pp": -0.7238091376265493,
+      "sd_stable_pp": 2.605065235406995
+    },
+    "pipeline": {
+      "mae_pp": 15.049373836728835,
+      "bias_prog_pp": -11.132845506461441,
+      "sd_stable_pp": 11.619178498169706
+    }
+  },
+  "seg_area_err_visit_sd_pct": 159.93078549541838,
+  "seg_area_err_visit_mean_pct": 17.773451289418954,
+  "gross_overseg_prog_first": 0.08139534883720931,
+  "gross_overseg_other": 0.03255813953488372,
+  "seg_area_abs_err_median_pct": 10.864815048911264,
+  "seg_area_err_median_pct": 0.720774381452749,
+  "seg_area_err_mean_prog_v0": 39.131175921956945,
+  "seg_area_err_mean_prog_v3": 8.176407655073392,
+  "seg_area_err_mean_stable_v0": 10.939430343251402,
+  "seg_area_err_mean_stable_v3": 5.674519702720105,
+  "area_mdc95_pipeline_pp": 22.2003403601381,
+  "area_mdc95_accepted_pp": 19.113548629489166,
+  "detected_growth_rate_accepted": 0.8296089385474861,
+  "false_growth_rate_accepted": 0.05454545454545454,
+  "area_mdc95_oracle_pp": 4.978636070160961,
+  "detected_growth_rate_pipeline": 0.8093023255813954,
+  "false_growth_rate_pipeline": 0.037383177570093455,
+  "frame_visit_means_stable": {
+    "native": {
+      "compactness": [
+        1.3359822462911668,
+        1.3306610012010514,
+        1.3300951134250243,
+        1.3313010355048993
+      ],
+      "perimeter": [
+        416.30957037585597,
+        417.1890210196339,
+        416.69248065069183,
+        414.5002120721388
+      ],
+      "glcm_contrast": [
+        0.7287451130687134,
+        0.742905087588037,
+        0.7247797797658654,
+        0.7754360344298391
+      ]
+    },
+    "resampled": {
+      "compactness": [
+        1.335982246291167,
+        1.4782096418641633,
+        1.4689622814247638,
+        1.4808104578520913
+      ],
+      "perimeter": [
+        416.30957037585597,
+        435.93501722175023,
+        433.8547119296792,
+        433.64644178872885
+      ],
+      "glcm_contrast": [
+        0.7287451130687134,
+        0.6420878550874873,
+        0.6304743584714949,
+        0.6627624102307661
+      ]
+    }
+  }
+}

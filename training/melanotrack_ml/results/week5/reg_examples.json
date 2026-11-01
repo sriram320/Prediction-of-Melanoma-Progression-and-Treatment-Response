@@ -1,0 +1,16 @@
+[
+  {
+    "image_id": "ISIC_0000306",
+    "stage": "SIFT on skin, 207 inliers",
+    "measured_area_change": 36.21180862560174,
+    "true_area_change": 44.11227749885897,
+    "inliers": 207
+  },
+  {
+    "image_id": "ISIC_0000107",
+    "stage": "SIFT on skin, 91 inliers",
+    "measured_area_change": 41.618963745780135,
+    "true_area_change": 44.13482791285128,
+    "inliers": 91
+  }
+]

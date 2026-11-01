@@ -1,0 +1,41 @@
+0
+16
+32
+48
+64
+80
+96
+112
+128
+144
+160
+176
+192
+208
+224
+240
+256
+272
+288
+304
+320
+336
+352
+368
+384
+400
+416
+                                   method  dice_mean  dice_median  iou_mean  thr_jaccard  hd95_median  sensitivity  specificity  fail_rate  sec_per_image
+0  GrabCut from user box (semi-automatic)   0.861100     0.919299  0.788181     0.736021     7.615773     0.838489     0.986638   0.134884       0.380901
+1                        Otsu (automatic)   0.754383     0.866648  0.665287     0.559647    13.038405     0.766102     0.946653   0.325581       0.045307
+2              Otsu + GrabCut (automatic)   0.764904     0.887418  0.681622     0.592428    12.672754     0.790764     0.939494   0.295349            NaN
+3                       U-Net (automatic)   0.896435     0.932292  0.827617     0.781577     7.165591     0.903294     0.981796   0.097674       0.073583
+4           U-Net + 8-way TTA (automatic)   0.900221     0.935016  0.832769     0.788495     7.000000     0.907204     0.983253   0.093023       0.546351
+dx                                      melanoma  nevus  seb_keratosis
+method                                                                
+GrabCut from user box (semi-automatic)     0.867  0.882          0.752
+Otsu (automatic)                           0.794  0.762          0.661
+Otsu + GrabCut (automatic)                 0.804  0.775          0.660
+U-Net (automatic)                          0.886  0.913          0.828
+U-Net + 8-way TTA (automatic)              0.892  0.917          0.829
+{'spearman_conf_iou': 0.6650714525856165, 'auroc_conf_flags_iou_below_0_8': 0.8242926155969634, 'n_iou_below_0_8': 115, 'flagged_at_0_85': 31, 'mean_iou_flagged': 0.5117442286522327, 'mean_iou_not_flagged': 0.8577109954320001}

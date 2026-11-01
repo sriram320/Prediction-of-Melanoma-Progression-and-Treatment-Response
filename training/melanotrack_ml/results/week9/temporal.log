@@ -1,0 +1,20 @@
+    p_mel  p_ben  seed   endpoint         model  auroc  auroc_lo  auroc_hi  auprc  sens_at_spec80  prevalence  n_test
+0     0.7   0.25     0  endpointA    image_last  0.582     0.524     0.638  0.501           0.363       0.391     430
+1     0.7   0.25     0  endpointA   change_only  0.929     0.898     0.957  0.935           0.899       0.391     430
+2     0.7   0.25     0  endpointA  early_fusion  0.934     0.905     0.960  0.937           0.887       0.391     430
+3     0.7   0.25     0  endpointA   late_fusion  0.931     0.902     0.958  0.936           0.893       0.391     430
+4     0.7   0.25     0  endpointA      gru_attn  0.939     0.911     0.962  0.935           0.911       0.391     430
+5     0.7   0.25     0  endpointA   transformer  0.943     0.918     0.965  0.938           0.917       0.391     430
+6     0.7   0.25     0  endpointA     gru_noimg  0.947     0.919     0.970  0.946           0.923       0.391     430
+7     0.7   0.25     0  endpointB    image_last  0.756     0.694     0.815  0.492           0.654       0.188     430
+8     0.7   0.25     0  endpointB   change_only  0.773     0.716     0.832  0.463           0.593       0.188     430
+9     0.7   0.25     0  endpointB  early_fusion  0.836     0.785     0.884  0.594           0.716       0.188     430
+10    0.7   0.25     0  endpointB   late_fusion  0.834     0.783     0.882  0.584           0.716       0.188     430
+11    0.7   0.25     0  endpointB      gru_attn  0.826     0.779     0.870  0.516           0.679       0.188     430
+12    0.7   0.25     0  endpointB   transformer  0.840     0.793     0.885  0.554           0.741       0.188     430
+13    0.7   0.25     0  endpointB     gru_noimg  0.831     0.784     0.879  0.499           0.691       0.188     430
+0.7 0.1 361s
+0.7 0.4 412s
+0.7 0.55 464s
+0.4 0.4 515s
+done 515s

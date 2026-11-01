@@ -1,0 +1,8 @@
+{
+  "spearman_conf_iou": 0.6650714525856165,
+  "auroc_conf_flags_iou_below_0_8": 0.8242926155969634,
+  "n_iou_below_0_8": 115,
+  "flagged_at_0_85": 31,
+  "mean_iou_flagged": 0.5117442286522327,
+  "mean_iou_not_flagged": 0.8577109954320001
+}

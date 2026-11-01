@@ -6,8 +6,16 @@
 # Encrypted storage
 storage/
 
-# Model weights
+# Model weights and training outputs (they live in Google Drive, never in git)
 ml_service/models/
+*.pt
+*.pth
+*.onnx
+*.ckpt
+training/data/
+training/outputs/
+# Original copy of the team's Week 5-9 code; the tracked copy is training/melanotrack_ml/
+code_resulet_week_5_7_9/
 
 # Python
 __pycache__/

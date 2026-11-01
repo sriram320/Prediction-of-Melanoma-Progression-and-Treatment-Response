@@ -1,0 +1,7 @@
+{
+  "best_backbone_by_val": "effb0",
+  "n_train": 1290,
+  "n_val": 430,
+  "n_test": 430,
+  "test_melanoma": 81
+}

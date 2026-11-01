@@ -1,0 +1,22 @@
+0/430 4s
+50/430 23s
+100/430 42s
+150/430 62s
+200/430 85s
+250/430 110s
+300/430 135s
+350/430 157s
+400/430 183s
+                   scenario         method    n  median_err_px  mean_err_px  success_2px  success_5px  iou_mean  growth_abs_err_pp  growth_retained  fallback_rate     time_ms
+0          acquisition_only     ecc_affine  430       0.102891     0.152165     1.000000     1.000000  0.992149           0.456121              NaN       0.000000   91.631547
+1          acquisition_only  moments_rigid  430       6.696385     7.092760     0.148837     0.390698  0.890451          11.519227              NaN       0.000000    4.621041
+2          acquisition_only  moments_scale  430       0.142736     0.970799     0.927907     0.953488  0.990623           0.104281              NaN       0.000000    6.342235
+3          acquisition_only           none  430      32.996987    33.080798     0.000000     0.002326  0.634079          11.587165              NaN       0.000000    0.016034
+4          acquisition_only      sift_skin  430       0.169499     2.485236     0.765116     0.818605  0.963136           3.609706              NaN       0.272093  134.693735
+5          acquisition_only     sift_whole  430       0.119751     0.122664     1.000000     1.000000  0.991994           0.362489              NaN       0.000000  164.532402
+6   acquisition_plus_growth     ecc_affine  430       9.654553    13.946525     0.281395     0.402326  0.834896          21.521524         0.459647       0.000000  104.521737
+7   acquisition_plus_growth  moments_rigid  430       8.519242    14.125273     0.048837     0.223256  0.747482          15.726232         0.887068       0.000000    4.583939
+8   acquisition_plus_growth  moments_scale  430      17.505874    22.329294     0.000000     0.000000  0.952816          38.232672        -0.000174       0.000000    6.420245
+9   acquisition_plus_growth           none  430      33.513522    33.572954     0.000000     0.000000  0.611796          15.882708         0.905543       0.000000    0.018691
+10  acquisition_plus_growth      sift_skin  430       0.333206     9.338861     0.604651     0.665116  0.728244           6.503201         0.996099       0.365116  130.420640
+11  acquisition_plus_growth     sift_whole  430       0.367959     8.487628     0.604651     0.604651  0.800931          17.311817         0.982861       0.000000  163.435039

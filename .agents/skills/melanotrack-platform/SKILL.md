@@ -59,6 +59,7 @@ reviews the result and signs a report, and the patient logs in to view it.
 ```text
 backend/app/{core,models,schemas,api/v1,services,workers,templates}  backend/alembic  backend/tests
 ml_service/app/{main.py,contract.py,adapters/}   ml_service/models/<name>/<version>/  (gitignored)
+training/{melanotrack_ml/ (team's Week 5-9 code + results + splits), notebooks/ (Colab), tools/}
 frontend/src/{styles,api,auth,components,layouts,pages/<portal>}
 deploy/Caddyfile   docker-compose.yml   .env.example   storage/ (gitignored)
 docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original design docs)
@@ -87,6 +88,11 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 - **Backend tests:** `docker compose exec backend pytest -q`.
 - **Frontend dev (hot reload):** `cd frontend && npm run dev` (proxy `/api` → `http://localhost:8000`).
 - **Integrate the real model:** follow [model_integration.md §5](references/model_integration.md).
+- **Train the model:** see `training/README.md`. Google Colab (T4) notebooks write to Google Drive
+  (`MyDrive/melanotrack/`); edit `training/notebooks/NN_*.py` and rebuild the `.ipynb` with
+  `python training/tools/build_notebooks.py`. Test a notebook on CPU with fake data before handing it over. Keep the
+  430-image ISIC 2017 test set (`training/melanotrack_ml/splits/isic2017_splits.csv`) for final scores only.
+  Models are exported to ONNX and run on CPU with ONNX Runtime in the ml-service.
 - **PDF reports** use fpdf2 (pure Python). Font: `REPORT_FONT_PATH`, else DejaVu (Docker) or Arial (Windows), else core
   Helvetica (Latin-1 only). Indic-script names need a font with those glyphs (e.g. Noto Sans Kannada) via `REPORT_FONT_PATH`.
 - **Charts** use Recharts via `frontend/src/components/charts.jsx` (colours read from the CSS tokens; 2px lines, r=4
@@ -119,7 +125,7 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 | P3 Inference pipeline (mock) | ✅ Done 2026-10-31 (50 backend + 10 ml-service tests; analysis runs in ~2.6 s on the demo lesion; doctor/admin analysis panel, technician jobs page) |
 | P4 Doctor review & PDF reports | ✅ Done 2026-10-31 (58 backend tests; worklist, review/override, outline editor, treatments, report editor, sign/release/amend, patient Reports page) |
 | P5 Dashboards, fairness, audit viewer | ✅ Done 2026-10-31 (64 backend tests; risk trend + measurement charts, hospital activity dashboard, fairness report for SA/HA/DR with CSV export, audit viewer for SA/HA with hash-chain verification, histopathology results on biopsies/excisions; migration 0004) |
-| P6 Real model integration | ⏳ Waiting for teammates' trained model |
+| P6 Real model integration | 🚧 In progress 2026-10-31: Sriram trains the model on Google Colab with the team's Week 5-9 code (`training/`). Step 1 (U-Net segmentation, notebook 01) ready and CPU-tested on fake data; steps 2-4 (classifier, sequence model, ONNX adapter) to follow |
 | P7 Hardening (RLS, backups, tests, FHIR) | ⏳ Not started |
 
 ## 8. Open questions for the user (remove when answered)
@@ -137,6 +143,9 @@ docs/Implementation_Document.md      Week1/2/4 *.docx (repo root, original desig
 - Can patients see raw scan images before a report is released? (Implemented as yes, images only, excluded
   visits hidden; never quality scores, notes or AI output. Confirm.)
 - Should technicians be able to remove a wrongly uploaded image? (P2 has no delete; a doctor can exclude the visit.)
-- Does the server have an NVIDIA GPU? (Decides CUDA vs CPU torch in ml-service.)
+- Does the server have an NVIDIA GPU? (Less critical now: trained models run on CPU with ONNX Runtime.)
+- When the trained model is active, `is_mock=false` removes the "MOCK MODEL" watermark. Proposed: show "RESEARCH
+  MODEL — NOT FOR CLINICAL USE" instead, since it is validated only on public and simulated data. Confirm before P6.
+- Real serial dermoscopy: access to the UQ longitudinal dataset (Sci Data 2025) to be requested by the user/mentor.
 - Hosting target (lab machine / cloud VM / local demo) and domain for HTTPS.
 - Keep the name "MelanoTrack"?
