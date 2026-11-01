@@ -14,9 +14,9 @@ the team's design documents (Week 5 to 9) and reuses the team's code.
 
 | Step | Module | Model | Data | Status |
 |---|---|---|---|---|
-| 1 | M3 segmentation | U-Net, ResNet-34 encoder, 512 px, 8-way TTA confidence | ISIC 2017 + ISIC 2018 Task 1 | Notebook ready: `01_segmentation_unet.ipynb` |
-| 2 | M5 per-visit encoder | EfficientNet-B3, fine-tuned (melanoma vs benign) + Grad-CAM++ | ISIC 2017 splits, HAM10000, ISIC 2019/2020 (de-duplicated against the test set) | Next |
-| 3 | M7/M8/M11 sequence model | GRU-128 + attention, 5-seed ensemble, focal loss, temperature scaling, conformal set, Mahalanobis OOD | Simulated sequences (Week 7 simulator) now; real serial dermoscopy when access is granted | Later |
+| 1 | M3 segmentation | U-Net, ResNet-34 encoder, 512 px, 8-way TTA confidence | ISIC 2017 + ISIC 2018 Task 1 | Trained (0.1.0): test Dice 0.907 vs 0.900 in Week 5 · `01_segmentation_unet.ipynb` |
+| 2 | M5 per-visit encoder | EfficientNet-B3 fine-tuned at 300 px on 9 diagnoses: calibrated melanoma probability, 256-d embedding, Mahalanobis OOD statistics, Grad-CAM | ISIC 2017 splits + ISIC 2019 (HAM10000, BCN20000, MSK) + ISIC 2020; copies of ISIC 2017 images removed, split by lesion/patient | Notebook ready: `02_classifier_effnet.ipynb` |
+| 3 | M7/M8/M11 sequence model | GRU-128 + attention over the step 2 embeddings, 5-seed ensemble, focal loss, temperature scaling, conformal set, OOD threshold | Simulated sequences (Week 7 simulator) now; real serial dermoscopy when access is granted | Later |
 | 4 | Packaging | ONNX models + `ml_service/app/adapters/longitudinal.py`, test vectors, model card | | Later |
 
 Registration (M4, skin-anchored SIFT) and the 29 descriptors (M5) are classical code from `melanotrack_ml/src/`
@@ -29,7 +29,10 @@ and need no training. Real serial data: the University of Queensland's longitudi
 2. In Colab: *File → Open notebook → GitHub*, paste the repository URL, open `training/notebooks/<notebook>.ipynb`
    (or upload the `.ipynb` file).
 3. *Runtime → Change runtime type → T4 GPU*, then *Runtime → Run all*. Allow Google Drive access when asked.
-4. Optional first run: set `QUICK_RUN = True` in the first code cell (about 5 minutes) to check everything works.
+4. Optional first run: set `QUICK_RUN = True` in the first code cell (about 5-10 minutes) to check everything works.
+5. Notebook 02 downloads about 35 GB the first time. To save free GPU time, prepare the data on a CPU runtime with
+   `PREPARE_ONLY = True` (it stops on purpose with a message when done), then set it back to `False`, switch to a
+   T4 GPU and *Run all* again.
 
 Everything a notebook produces goes to Google Drive, never to GitHub:
 

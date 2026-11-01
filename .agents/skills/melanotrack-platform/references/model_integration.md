@@ -126,6 +126,10 @@ The model is now trained in-house on Google Colab: `training/README.md` (steps, 
 `training/notebooks/`. Artifacts arrive as ONNX files + JSON metadata in `MyDrive/melanotrack/models/
 melanotrack-longitudinal/<version>/` (e.g. `segmentation.onnx`, `segmentation.json` with input size, mean/std, TTA,
 `tau_seg`, metrics). The adapter will run them with ONNX Runtime (CPU) and OpenCV; no torch in the ml-service.
+Step 2 adds `classifier.onnx` (inputs 300 px; outputs `logits` over 9 diagnoses, a 256-d `embedding` and the
+`features` map), `classifier.json` (temperature, classes, thresholds), `classifier_ood.npz` (Mahalanobis mean,
+precision, `tau_ood`) and `classifier_cam.npz` (weights for numpy Grad-CAM, formula in the JSON). Average logits and
+embeddings over the 8 TTA views; `melanoma_probability = softmax(logits / T)[MEL]`.
 Note: `tau_seg` is a TTA-agreement threshold (Week 5: 0.85); set the backend's `SEGMENTATION_CONFIDENCE_THRESHOLD` to
 match when the adapter goes live (the mock uses solidity with 0.6).
 
